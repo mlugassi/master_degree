@@ -33,7 +33,7 @@ class Perceptron:
     def train_step(self, inputs, desired_output):
         prediction = self.predict(inputs) 
         err = desired_output - prediction
-        correction = err * self.lr
+        correction = err * self.lr#aaa
         self.w = self.w + (correction * inputs)
         return {"prediction": prediction, 'error': err, 'weights': self.w }
 
@@ -77,6 +77,7 @@ def train_perceptron(training_data, epochs=4):
     # 3. In each epoch, loop through training data
     # 4. Call train_step for each training example
     # 5. Optional: Store training history for visualization
+    pass
     pass
 
 
