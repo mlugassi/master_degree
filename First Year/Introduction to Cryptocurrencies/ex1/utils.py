@@ -27,8 +27,7 @@ def sign(message: bytes, private_key: PrivateKey) -> Signature:
 def verify(message: bytes, sig: Signature, pub_key: PublicKey) -> bool:
     """Verifies a signature for a given message using a public key. 
     Returns True is the signature matches, otherwise False"""
-    pub_k = Ed25519PublicKey.from_public_bytes(
-        pub_key)
+    pub_k = Ed25519PublicKey.from_public_bytes(pub_key)
     try:
         pub_k.verify(sig, message)
         return True

@@ -7,13 +7,14 @@ class Transaction:
     """Represents a transaction that moves a single coin
     A transaction with no source creates money. It will only be created by the bank."""
 
-    def __init__(self, output: PublicKey, input: Optional[TxID], signature: Signature) -> None:
+    def __init__(self, output: PublicKey, input: Optional[TxID], signature: Signature, source: Optional[PublicKey] = None) -> None:
         # do not change the name of this field:
         self.output: PublicKey = output
         # do not change the name of this field:
         self.input: Optional[TxID] = input
         # do not change the name of this field:
         self.signature: Signature = signature
+        self.source = source
 
     def get_txid(self) -> TxID:
         """Returns the identifier of this transaction. This is the SHA256 of the transaction contents."""

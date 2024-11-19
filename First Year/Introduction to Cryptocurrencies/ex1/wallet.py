@@ -1,36 +1,37 @@
 from .utils import *
 from .transaction import Transaction
 from .bank import Bank
-from typing import Optional
+from typing import List, Optional
 
 
 class Wallet:
     def __init__(self) -> None:
         """This function generates a new wallet with a new private key."""
-        # TODO: Need to generate the keys below
-        self.private_key: PrivateKey = None
-        self.public_key: PublicKey = None
-        self.balance: int = 0
+        self.private_key, self.public_key = gen_keys()
+        self.unspent_transaction: List[Transaction]
+        self.pending_transaction: List[Transaction]
         self.last_updated_blockhash: BlockHash = None
 
-
     def update(self, bank: Bank) -> None:
-        '''
+        """
         This function updates the balance allocated to this wallet by querying the bank.
         Don't read all of the bank's utxo, but rather process the blocks since the last update one at a time.
         For this exercise, there is no need to validate all transactions in the block.
-        '''
+        """
         latest_blockhash = bank.get_latest_hash()
         curr_blockhash = latest_blockhash
 
-        while(curr_blockhash != self.last_updated_blockhash):
-            pass
-            curr_blockhash = bank.get_block(curr_blockhash).get_prev_block_hash()
-        
+        while curr_blockhash != self.last_updated_blockhash:
+            curr_block = bank.get_block(curr_blockhash)
+            transactions = curr_block.get_transactions()
+            for transaction in transactions:
+                if transaction.output == self.get_address():
+                    self.unspent_transaction.append(transaction)
+                elif transaction in self.pending_transaction:
+                    self.pending_transaction.remove(transaction)
+            curr_blockhash = curr_block.get_prev_block_hash()
+
         self.last_updated_blockhash = latest_blockhash
-
-
-        raise NotImplementedError()
 
     def create_transaction(self, target: PublicKey) -> Optional[Transaction]:
         """
@@ -40,13 +41,21 @@ class Wallet:
         bank just yet (it still wasn't included in a block) then the wallet should'nt spend it again
         until unfreeze_all() is called. The method returns None if there are no unspent outputs that can be used.
         """
-        raise NotImplementedError()
+        if not self.unspent_transaction:
+            return None
+        
+        chosen_transction = self.unspent_transaction.pop()
+        self.pending_transaction.append(chosen_transction)
+        signature = sign(chosen_transction.input)
+        return Transaction(output=target, input=chosen_transction.get_txid(), signature=None)
 
     def unfreeze_all(self) -> None:
         """
-        Allows the wallet to try to re-spend outputs that it created transactions for (unless these outputs made it into the blockchain).
+        Allows the wallet to try to re-spend outputs that it
+        created transactions for (unless these outputs made it into the blockchain).
         """
-        raise NotImplementedError()
+        self.unspent_transaction += self.pending_transaction
+        self.pending_transaction = []
 
     def get_balance(self) -> int:
         """
@@ -55,7 +64,7 @@ class Wallet:
         Coins that the wallet owned and sent away will still be considered as part of the balance until the spending
         transaction is in the blockchain.
         """
-        return self.balance
+        return len(self.unspent_transaction) + len(self.pending_transaction)
 
     def get_address(self) -> PublicKey:
         """
