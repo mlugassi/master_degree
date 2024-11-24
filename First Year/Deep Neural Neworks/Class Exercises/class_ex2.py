@@ -1,4 +1,4 @@
-#Autor Michael Lugassi
+# Autor Michael Lugassi
 
 
 #  Step 1: Basic Setup
@@ -11,9 +11,9 @@ import numpy as np
 
 class Perceptron:
     def __init__(self, size=3, learning_rate=0.1, threshold=0.5):
-        self.w = np.zeros(size)
-        self.lr = learning_rate
-        self.t = threshold
+        self.weights = np.zeros(size)
+        self.learning_rate = learning_rate
+        self.threshold = threshold
 
     # Step 2: Implement the Prediction Function
     """
@@ -22,27 +22,25 @@ class Perceptron:
     If sum > threshold, predict 1; otherwise predict 0
     """
 
-
     def predict(self, inputs):
-        sum = np.dot(inputs, self.w)
+        weighted_input = np.dot(inputs, self.weights)
 
-        if sum > self.t:
+        if weighted_input > self.threshold:
             return 1
         return 0
 
     def train_step(self, inputs, desired_output):
-        prediction = self.predict(inputs) 
+        prediction = self.predict(inputs)
         err = desired_output - prediction
-        correction = err * self.lr#aaa
-        self.w = self.w + (correction * inputs)
-        return {"prediction": prediction, 'error': err, 'weights': self.w }
+        correction = err * self.learning_rate  # aaa
+        self.weights = self.weights + (correction * inputs)
+        return {"prediction": prediction, "error": err, "weights": self.weights}
 
 
 # Step 4: Complete Implementation
 """
 Here's the complete implementation for reference
 """
-
 
 
 # Step 5: Training Data Setup
@@ -64,32 +62,10 @@ def create_training_data():
     return training_data
 
 
-# Step 6: Training Loop
-"""
-Implement the training loop that processes all examples
-"""
-
-
-def train_perceptron(training_data, epochs=4):
-    # Student Task:
-    # 1. Create perceptron instance
-    # 2. Loop through epochs
-    # 3. In each epoch, loop through training data
-    # 4. Call train_step for each training example
-    # 5. Optional: Store training history for visualization
-    pass
-    pass
-
-
 # Step 7: Example Usage and Visualization
 def main():
     # Create training data
-    training_data = [
-        ([1, 0, 0], 1),
-        ([1, 0, 1], 1),
-        ([1, 1, 0], 1),
-        ([1, 1, 1], 0)
-    ]
+    training_data = [([1, 0, 0], 1), ([1, 0, 1], 1), ([1, 1, 0], 1), ([1, 1, 1], 0)]
 
     # Create and train perceptron
     p = Perceptron()
