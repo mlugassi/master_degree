@@ -36,8 +36,6 @@ class Perceptron:
         self.weight = np.zeros(size)
         self.learning_rate = learning_rate
         self.threshold = threshold
-        self.predicted_outputs = list()
-        self.desired_outputs = list()
 
     def predict(self, inputs):
         """
@@ -70,8 +68,6 @@ class Perceptron:
         err = desired_output - prediction
         correction = err * self.learning_rate
         self.weight = self.weight + (correction * inputs)
-        self.desired_outputs.append(desired_output)
-        self.predicted_outputs.append(prediction)
         return {"prediction": prediction, "error": err, "weights": self.weight}
 
 
