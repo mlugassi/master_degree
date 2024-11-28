@@ -46,8 +46,8 @@ class Wallet:
         
         chosen_transction = self.unspent_transaction.pop()
         self.pending_transaction.append(chosen_transction)
-        signature = sign(chosen_transction.input)
-        return Transaction(output=target, input=chosen_transction.get_txid(), signature=None)
+        signature = sign(chosen_transction.input + chosen_transction.output)
+        return Transaction(output=target, input=chosen_transction.get_txid(), signature=signature)
 
     def unfreeze_all(self) -> None:
         """
@@ -55,7 +55,7 @@ class Wallet:
         created transactions for (unless these outputs made it into the blockchain).
         """
         self.unspent_transaction += self.pending_transaction
-        self.pending_transaction = []
+        self.pending_transaction.clear()
 
     def get_balance(self) -> int:
         """

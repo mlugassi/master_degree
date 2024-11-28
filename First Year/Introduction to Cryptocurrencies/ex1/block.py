@@ -1,7 +1,7 @@
 from .utils import BlockHash, PublicKey
 from .transaction import Transaction
 from typing import List
-
+import hashlib
 
 class Block:
     def __init__(self, transactions: List[Transaction], prev_block_hash: BlockHash):
@@ -22,10 +22,12 @@ class Block:
         return self.prev_block_hash
 
     def calc_block_hash(self):
-        for transaction in self.transactions:
-            pass
-        # TODO: calc this func
-
+        transactions_data = b"|".join(
+            transaction.input + b";" + transaction.output for transaction in self.transactions
+        )
+    
+        return hashlib.sha256(transactions_data).digest()
+    
     # TODO maybe that func should be removed
     def get_transactions_by_address(self, address: PublicKey) -> List[Transaction]:
         return [tran for tran in self.transactions if tran.output == address]
