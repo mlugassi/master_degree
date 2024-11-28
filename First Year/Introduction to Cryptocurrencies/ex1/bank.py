@@ -2,6 +2,7 @@ from .utils import BlockHash, PublicKey, TxID, verify
 from .transaction import Transaction
 from .block import Block
 from typing import List, Optional
+import secrets
 
 # Refael comment
 
@@ -11,6 +12,7 @@ class Bank:
         """Creates a bank with an empty blockchain and an empty mempool."""
         self.blockchain: List[Block] = list()
         self.mempool: List[Transaction] = list()
+        self.utxo: List[TxID] = list()
 
     def find_transaction(self, txid: Optional[TxID]):
         if txid is not None:
@@ -19,7 +21,7 @@ class Bank:
                 if transaction is not None:
                     return transaction
         return None
-
+    
     def add_transaction_to_mempool(self, transaction: Transaction) -> bool:
         """
         This function inserts the given transaction to the mempool.
@@ -30,10 +32,12 @@ class Bank:
         (iv) there is no input (i.e., this is an attempt to create money from nothing)
         """
 
-        #TODO Check with Ofir what (iv) and regarding(ii) does it means we just need if the input exists in the blockchain
         input_transaction = self.find_transaction(transaction.input)
-
-        if input_transaction is None: # (ii) & (iv)
+        
+        if input_transaction is None: # (iv)
+            return False        
+        
+        if transaction.input not in self.utxo: # (ii)
             return False
 
         if not verify((transaction.input + transaction.output), transaction.signature, input_transaction.output): # (i) # type: ignore
@@ -51,31 +55,45 @@ class Bank:
         If there are fewer than 'limit' transactions in the mempool, a smaller block is created.
         If there are no transactions, an empty block is created. The hash of the block is returned.
         """
-        raise NotImplementedError()
+        block_transactions: List[Transaction] = list()
+
+        for i, transaction in enumerate(self.get_mempool())[:]:
+            if i < limit:
+                block_transactions.append(transaction)
+                self.utxo.remove(transaction.input)
+                self.mempool.remove(transaction)
+                self.utxo.append(transaction.get_txid())
+            else:
+                break
+
+        self.blockchain.append(Block(block_transactions, self.get_latest_hash()))
 
     def get_block(self, block_hash: BlockHash) -> Block:
         """
         This function returns a block object given its hash. If the block doesnt exist, an exception is thrown..
         """
-        raise NotImplementedError()
+        for block in self.blockchain:
+            if block.get_block_hash() == block_hash:
+                return block
+        raise Exception(f"Block hash {block_hash} doen't exists in the blockchain")
 
     def get_latest_hash(self) -> BlockHash:
         """
         This function returns the hash of the last Block that was created by the bank.
         """
-        raise NotImplementedError()
+        return self.blockchain[-1].get_block_hash()
 
     def get_mempool(self) -> List[Transaction]:
         """
         This function returns the list of transactions that didn't enter any block yet.
         """
-        raise NotImplementedError()
+        return self.mempool
 
     def get_utxo(self) -> List[Transaction]:
         """
         This function returns the list of unspent transactions.
         """
-        raise NotImplementedError()
+        return self.utxo
 
     def create_money(self, target: PublicKey) -> None:
         """
@@ -83,4 +101,7 @@ class Bank:
         this transaction includes a random string of 48 bytes (so that every two creation transactions are different).
         This function is a secret function that only the bank can use (currently for tests, and will make sense in a later exercise).
         """
-        raise NotImplementedError()
+        dummy_sig = secrets.token_bytes(48)
+        new_trans = Transaction(target, None, dummy_sig)
+        self.add_transaction_to_mempool(new_trans)
+
