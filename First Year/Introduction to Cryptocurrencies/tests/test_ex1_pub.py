@@ -1,5 +1,6 @@
 import sys
 sys.path.insert(1,r"C:\Users\rzanzuri\OneDrive - Intel Corporation\Desktop\תואר שני\master_degree\First Year\Introduction to Cryptocurrencies")
+sys.path.insert(1,r"C:\Users\mlugassi\OneDrive - Intel Corporation\Documents\Private\Master Degree\First Year\Introduction to Cryptocurrencies")
 
 from ex1 import *
 

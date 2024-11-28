@@ -8,9 +8,9 @@ class Wallet:
     def __init__(self) -> None:
         """This function generates a new wallet with a new private key."""
         self.private_key, self.public_key = gen_keys()
-        self.unspent_transaction: List[Transaction]
-        self.pending_transaction: List[Transaction]
-        self.last_updated_blockhash: BlockHash = None
+        self.unspent_transaction: List[Transaction] = list()
+        self.pending_transaction: List[Transaction] = list()
+        self.last_updated_blockhash: BlockHash = GENESIS_BLOCK_PREV
 
     def update(self, bank: Bank) -> None:
         """
@@ -46,7 +46,10 @@ class Wallet:
         
         chosen_transction = self.unspent_transaction.pop()
         self.pending_transaction.append(chosen_transction)
-        signature = sign(chosen_transction.input + chosen_transction.output)
+        if chosen_transction.input is None:
+            signature = sign(chosen_transction.output, self.private_key)
+        else:
+            signature = sign((chosen_transction.input + chosen_transction.output), self.private_key)
         return Transaction(output=target, input=chosen_transction.get_txid(), signature=signature)
 
     def unfreeze_all(self) -> None:

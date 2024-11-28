@@ -1,10 +1,8 @@
-from .utils import BlockHash, PublicKey, TxID, verify
+from .utils import GENESIS_BLOCK_PREV, BlockHash, PublicKey, TxID, verify
 from .transaction import Transaction
 from .block import Block
 from typing import List, Optional
 import secrets
-
-# Refael comment
 
 
 class Bank:
@@ -12,7 +10,7 @@ class Bank:
         """Creates a bank with an empty blockchain and an empty mempool."""
         self.blockchain: List[Block] = list()
         self.mempool: List[Transaction] = list()
-        self.utxo: List[TxID] = list()
+        self.utxo: List[Transaction] = list()
 
     def find_transaction(self, txid: Optional[TxID]):
         if txid is not None:
@@ -37,7 +35,7 @@ class Bank:
         if input_transaction is None: # (iv)
             return False        
         
-        if transaction.input not in self.utxo: # (ii)
+        if transaction.input not in [txn.get_txid() for txn in self.utxo]: # (ii)
             return False
 
         if not verify((transaction.input + transaction.output), transaction.signature, input_transaction.output): # (i) # type: ignore
@@ -46,6 +44,7 @@ class Bank:
         for mempool_transaction in self.get_mempool():  # (iii)
             if mempool_transaction.input == transaction.input:
                 return False
+        self.mempool.append(transaction)
         return True
 
     def end_day(self, limit: int = 10) -> BlockHash:
@@ -57,15 +56,16 @@ class Bank:
         """
         block_transactions: List[Transaction] = list()
 
-        for i, transaction in enumerate(self.get_mempool())[:]:
+        for i, transaction in enumerate(self.get_mempool()[:]):
             if i < limit:
                 block_transactions.append(transaction)
-                self.utxo.remove(transaction.input)
                 self.mempool.remove(transaction)
-                self.utxo.append(transaction.get_txid())
+                input_transaction = self.find_transaction(transaction.input)
+                if input_transaction is not None:
+                    self.utxo.remove(input_transaction)
+                self.utxo.append(transaction)
             else:
                 break
-
         self.blockchain.append(Block(block_transactions, self.get_latest_hash()))
 
     def get_block(self, block_hash: BlockHash) -> Block:
@@ -81,6 +81,8 @@ class Bank:
         """
         This function returns the hash of the last Block that was created by the bank.
         """
+        if len(self.blockchain) == 0:
+            return GENESIS_BLOCK_PREV
         return self.blockchain[-1].get_block_hash()
 
     def get_mempool(self) -> List[Transaction]:
@@ -101,7 +103,7 @@ class Bank:
         this transaction includes a random string of 48 bytes (so that every two creation transactions are different).
         This function is a secret function that only the bank can use (currently for tests, and will make sense in a later exercise).
         """
-        dummy_sig = secrets.token_bytes(48)
-        new_trans = Transaction(target, None, dummy_sig)
-        self.add_transaction_to_mempool(new_trans)
+        new_transaction = Transaction(target, None, secrets.token_bytes(48))
+        self.mempool.append(new_transaction)
+        # self.utxo.append(new_transaction)
 

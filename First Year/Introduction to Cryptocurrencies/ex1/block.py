@@ -24,7 +24,7 @@ class Block:
     def calc_block_hash(self):
         # TODO: To check if need to add the signature here
         transactions_data = b"|".join(
-            (transaction.input if transactions.input is not None else b"") + b";" + transaction.output for transaction in self.transactions
+            (transaction.input if transaction.input is not None else b"") + b";" + transaction.output for transaction in self.transactions
         )
         return hashlib.sha256(transactions_data).digest()
     

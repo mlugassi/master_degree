@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: pytest",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "justMyCode": true,
+            "args": ["--maxfail=1", "--disable-warnings"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/First Year/Introduction to Cryptocurrencies"
+        }
+    ]
+}
