@@ -1,4 +1,4 @@
-from .utils import BlockHash, PublicKey
+from .utils import BlockHash, PublicKey, TxID, Optional
 from .transaction import Transaction
 from typing import List
 import hashlib
@@ -22,12 +22,15 @@ class Block:
         return self.prev_block_hash
 
     def calc_block_hash(self):
+        # TODO: To check if need to add the signature here
         transactions_data = b"|".join(
             transaction.input + b";" + transaction.output for transaction in self.transactions
         )
     
         return hashlib.sha256(transactions_data).digest()
     
-    # TODO maybe that func should be removed
-    def get_transactions_by_address(self, address: PublicKey) -> List[Transaction]:
-        return [tran for tran in self.transactions if tran.output == address]
+    def find_transaction(self, txid: TxID) -> Optional[Transaction]:
+        for transaction in self.transactions:
+            if transaction.get_txid() == txid:
+                return transaction
+        return None

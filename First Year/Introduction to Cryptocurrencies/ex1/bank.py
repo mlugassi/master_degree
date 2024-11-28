@@ -1,4 +1,4 @@
-from .utils import BlockHash, PublicKey
+from .utils import BlockHash, PublicKey, verify
 from .transaction import Transaction
 from .block import Block
 from typing import List
@@ -8,20 +8,31 @@ from typing import List
 class Bank:
     def __init__(self) -> None:
         """Creates a bank with an empty blockchain and an empty mempool."""
-        self.blockchain: List[BlockHash] = list()
+        self.blockchain: List[Block] = list()
         self.mempool: List[Transaction] = list()
         raise NotImplementedError()
 
     def add_transaction_to_mempool(self, transaction: Transaction) -> bool:
         """
         This function inserts the given transaction to the mempool.
-        It will return False iff one of the following conditions hold:
+        It will return False if one of the following conditions hold:
         (i) the transaction is invalid (the signature fails)
         (ii) the source doesn't have the coin that he tries to spend
         (iii) there is contradicting tx in the mempool.
         (iv) there is no input (i.e., this is an attempt to create money from nothing)
         """
-        raise NotImplementedError()
+        input_transaction = None
+        for block in self.blockchain:
+            input_transaction = block.find_transaction(transaction.input)
+            if input_transaction: # (i)
+                if not verify(transaction.input + transaction.output, transaction.signature, input_transaction.output):
+                    return False
+            for mempool_transaction in self.get_mempool(): # (iii)
+                if mempool_transaction.input == transaction.input:
+                    return False
+            if not transaction.input: # (iv)
+                return False
+        return True
 
     def end_day(self, limit: int = 10) -> BlockHash:
         """
