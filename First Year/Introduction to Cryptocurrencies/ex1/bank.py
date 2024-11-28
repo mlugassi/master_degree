@@ -1,16 +1,24 @@
-from .utils import BlockHash, PublicKey, verify
+from .utils import BlockHash, PublicKey, TxID, verify
 from .transaction import Transaction
 from .block import Block
-from typing import List
+from typing import List, Optional
 
 # Refael comment
+
 
 class Bank:
     def __init__(self) -> None:
         """Creates a bank with an empty blockchain and an empty mempool."""
         self.blockchain: List[Block] = list()
         self.mempool: List[Transaction] = list()
-        raise NotImplementedError()
+
+    def find_transaction(self, txid: Optional[TxID]):
+        if txid is not None:
+            for block in self.blockchain:
+                transaction = block.find_transaction(txid)
+                if transaction is not None:
+                    return transaction
+        return None
 
     def add_transaction_to_mempool(self, transaction: Transaction) -> bool:
         """
@@ -21,16 +29,18 @@ class Bank:
         (iii) there is contradicting tx in the mempool.
         (iv) there is no input (i.e., this is an attempt to create money from nothing)
         """
-        input_transaction = None
-        for block in self.blockchain:
-            input_transaction = block.find_transaction(transaction.input)
-            if input_transaction: # (i)
-                if not verify(transaction.input + transaction.output, transaction.signature, input_transaction.output):
-                    return False
-            for mempool_transaction in self.get_mempool(): # (iii)
-                if mempool_transaction.input == transaction.input:
-                    return False
-            if not transaction.input: # (iv)
+
+        #TODO Check with Ofir what (iv) and regarding(ii) does it means we just need if the input exists in the blockchain
+        input_transaction = self.find_transaction(transaction.input)
+
+        if input_transaction is None: # (ii) & (iv)
+            return False
+
+        if not verify((transaction.input + transaction.output), transaction.signature, input_transaction.output): # (i) # type: ignore
+            return False
+
+        for mempool_transaction in self.get_mempool():  # (iii)
+            if mempool_transaction.input == transaction.input:
                 return False
         return True
 

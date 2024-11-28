@@ -1,6 +1,6 @@
-from .utils import BlockHash, PublicKey, TxID, Optional
+from .utils import BlockHash, PublicKey, TxID
 from .transaction import Transaction
-from typing import List
+from typing import List, Optional
 import hashlib
 
 class Block:
@@ -24,12 +24,11 @@ class Block:
     def calc_block_hash(self):
         # TODO: To check if need to add the signature here
         transactions_data = b"|".join(
-            transaction.input + b";" + transaction.output for transaction in self.transactions
+            (transaction.input if transactions.input is not None else b"") + b";" + transaction.output for transaction in self.transactions
         )
-    
         return hashlib.sha256(transactions_data).digest()
     
-    def find_transaction(self, txid: TxID) -> Optional[Transaction]:
+    def find_transaction(self, txid: Optional[TxID]) -> Optional[Transaction]:
         for transaction in self.transactions:
             if transaction.get_txid() == txid:
                 return transaction
