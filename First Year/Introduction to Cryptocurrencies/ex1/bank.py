@@ -104,5 +104,3 @@ class Bank:
         """
         new_transaction = Transaction(target, None, secrets.token_bytes(48))
         self.mempool.append(new_transaction)
-        # self.utxo.append(new_transaction)
-
