@@ -135,3 +135,113 @@ def test_send_coin_to_myself(bank: Bank, alice: Wallet, alice_coin: Transaction)
     alice.update(bank)
     alice.unfreeze_all()
     assert alice.get_balance() == 1
+
+
+def test_invalid_signature(bank: Bank, alice: Wallet, bob: Wallet, alice_coin: Transaction) -> None:
+    # Create a valid transaction and tamper with the signature
+    tx = alice.create_transaction(bob.get_address())
+    assert tx is not None
+    tampered_tx = Transaction(output=tx.output, input=tx.input, signature=b"tampered_signature")
+    assert not bank.add_transaction_to_mempool(tampered_tx)
+    assert not bank.get_mempool()
+
+
+def test_empty_transaction(bank: Bank, alice: Wallet) -> None:
+    # Test that a transaction cannot be created without a valid input and output
+    tx = Transaction(output=None, input=None, signature=None)
+    assert not bank.add_transaction_to_mempool(tx)
+    assert not bank.get_mempool()
+
+
+def test_insufficient_funds(bank: Bank, alice: Wallet, bob: Wallet) -> None:
+    # Try to create a transaction from a wallet with insufficient funds
+    alice.update(bank)
+    tx = alice.create_transaction(bob.get_address())
+    assert tx is not None
+    bank.add_transaction_to_mempool(tx)
+    bank.end_day()
+
+    # Alice tries to spend again without sufficient funds
+    alice.update(bank)
+    tx2 = alice.create_transaction(bob.get_address())
+    assert tx2 is None  # Transaction shouldn't be created
+    assert alice.get_balance() == 0
+
+
+def test_create_multiple_blocks(bank: Bank, alice: Wallet, bob: Wallet, alice_coin: Transaction) -> None:
+    # Ensure that multiple blocks are created correctly
+    tx1 = alice.create_transaction(bob.get_address())
+    assert tx1 is not None
+    bank.add_transaction_to_mempool(tx1)
+    bank.end_day()
+
+    tx2 = bob.create_transaction(alice.get_address())
+    assert tx2 is not None
+    bank.add_transaction_to_mempool(tx2)
+    bank.end_day()
+
+    assert len(bank.get_block(bank.get_latest_hash()).get_transactions()) == 1
+    assert bank.get_block(bank.get_block(bank.get_latest_hash()).get_prev_block_hash()) is not None
+
+
+def test_no_transactions_no_block(bank: Bank) -> None:
+    # Test that no block is created if no transactions are in the mempool
+    initial_hash = bank.get_latest_hash()
+    bank.end_day()
+    assert bank.get_latest_hash() == initial_hash
+
+
+def test_unfreeze_and_reuse(bank: Bank, alice: Wallet, bob: Wallet, alice_coin: Transaction) -> None:
+    # Test unfreeze functionality and reuse of coins
+    tx = alice.create_transaction(bob.get_address())
+    assert tx is not None
+    bank.add_transaction_to_mempool(tx)
+    bank.end_day()
+
+    # Try to reuse the coin without unfreezing
+    alice.update(bank)
+    tx2 = alice.create_transaction(bob.get_address())
+    assert tx2 is None
+
+    # Unfreeze and retry
+    alice.unfreeze_all()
+    tx3 = alice.create_transaction(bob.get_address())
+    assert tx3 is not None
+    assert bank.add_transaction_to_mempool(tx3)
+
+
+def test_large_transaction_pool(bank: Bank, alice: Wallet, bob: Wallet, charlie: Wallet, alice_coin: Transaction) -> None:
+    # Create a large number of transactions to test the mempool and block creation
+    for _ in range(100):
+        tx = alice.create_transaction(bob.get_address())
+        assert tx is not None
+        bank.add_transaction_to_mempool(tx)
+
+    assert len(bank.get_mempool()) == 100
+    bank.end_day(limit=50)  # Process only 50 transactions
+    assert len(bank.get_mempool()) == 50  # Remaining transactions
+    assert len(bank.get_block(bank.get_latest_hash()).get_transactions()) == 50
+
+
+def test_chain_integrity(bank: Bank, alice: Wallet, bob: Wallet, alice_coin: Transaction) -> None:
+    # Ensure that the blockchain remains intact after multiple blocks
+    hash1 = bank.get_latest_hash()
+    tx = alice.create_transaction(bob.get_address())
+    assert tx is not None
+    bank.add_transaction_to_mempool(tx)
+    bank.end_day()
+
+    hash2 = bank.get_latest_hash()
+    assert hash2 != hash1
+    block = bank.get_block(hash2)
+    assert block.get_prev_block_hash() == hash1
+
+    tx2 = bob.create_transaction(alice.get_address())
+    assert tx2 is not None
+    bank.add_transaction_to_mempool(tx2)
+    bank.end_day()
+
+    hash3 = bank.get_latest_hash()
+    assert hash3 != hash2
+    block2 = bank.get_block(hash3)
+    assert block2.get_prev_block_hash() == hash2
