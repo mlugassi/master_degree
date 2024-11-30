@@ -121,3 +121,17 @@ def test_double_spend_fail(bank: Bank, alice: Wallet, bob: Wallet, charlie: Wall
     assert alice.get_balance() == 0
     assert bob.get_balance() == 1
     assert charlie.get_balance() == 0
+
+def test_send_coin_to_myself(bank: Bank, alice: Wallet, alice_coin: Transaction) -> None:
+    tx1 = alice.create_transaction(alice.get_address())
+    assert tx1 is not None
+    assert alice.get_balance() == 1
+    tx1 = alice.create_transaction(alice.get_address())
+    assert tx1 is None
+
+    assert alice.get_balance() == 1
+
+    # make alice spend the same coin
+    alice.update(bank)
+    alice.unfreeze_all()
+    assert alice.get_balance() == 1
