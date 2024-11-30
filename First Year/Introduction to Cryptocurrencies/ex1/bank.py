@@ -31,7 +31,6 @@ class Bank:
         """
 
         input_transaction = self.find_transaction(transaction.input)
-        
         if input_transaction is None: # (iv)
             return False        
         

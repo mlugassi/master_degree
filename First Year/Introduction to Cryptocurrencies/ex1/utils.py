@@ -31,7 +31,8 @@ def verify(message: bytes, sig: Signature, pub_key: PublicKey) -> bool:
     try:
         pub_k.verify(sig, message)
         return True
-    except:
+    except Exception as e:
+        print(f"An error occurred: {e}")
         return False
 
 

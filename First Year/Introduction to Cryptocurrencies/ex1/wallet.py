@@ -27,8 +27,10 @@ class Wallet:
             for transaction in transactions:
                 if transaction.output == self.get_address():
                     self.unspent_transaction.append(transaction)
-                elif transaction in self.pending_transaction:
-                    self.pending_transaction.remove(transaction)
+                else:
+                    for tx in self.pending_transaction:
+                        if tx.get_txid() == transaction.input:
+                            self.pending_transaction.remove(tx)
             curr_blockhash = curr_block.get_prev_block_hash()
 
         self.last_updated_blockhash = latest_blockhash
@@ -46,10 +48,7 @@ class Wallet:
         
         chosen_transction = self.unspent_transaction.pop()
         self.pending_transaction.append(chosen_transction)
-        if chosen_transction.input is None:
-            signature = sign(chosen_transction.output, self.private_key)
-        else:
-            signature = sign((chosen_transction.input + chosen_transction.output), self.private_key)
+        signature = sign(chosen_transction.get_txid() + target, self.private_key)
         return Transaction(output=target, input=chosen_transction.get_txid(), signature=signature)
 
     def unfreeze_all(self) -> None:
