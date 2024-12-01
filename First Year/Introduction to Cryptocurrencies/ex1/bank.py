@@ -29,7 +29,9 @@ class Bank:
         (iii) there is contradicting tx in the mempool.
         (iv) there is no input (i.e., this is an attempt to create money from nothing)
         """
-
+        if transaction is None:
+            return False    
+        
         input_transaction = self.find_transaction(transaction.input)
         if input_transaction is None: # (iv)
             return False        
