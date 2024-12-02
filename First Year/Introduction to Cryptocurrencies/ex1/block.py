@@ -32,5 +32,5 @@ class Block:
     def find_transaction(self, txid: Optional[TxID]) -> Optional[Transaction]:
         for transaction in self._transactions:
             if transaction.get_txid() == txid:
-                return copy.deepcopy(transaction)
+                return transaction
         return None

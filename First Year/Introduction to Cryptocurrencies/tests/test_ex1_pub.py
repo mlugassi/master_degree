@@ -230,12 +230,12 @@ def test_large_transaction_pool(bank: Bank, alice: Wallet, bob: Wallet, charlie:
         bank.create_money(alice.get_address())
 
     assert len(bank.get_mempool()) == 100
-    bank.end_day(limit=50)  # Process only 50 transactions
-    assert len(bank.get_mempool()) == 50  # Remaining transactions
-    assert len(bank.get_block(bank.get_latest_hash()).get_transactions()) == 50
+    bank.end_day(limit=40)  # Process only 40 transactions
+    assert len(bank.get_mempool()) == 60  # Remaining transactions
+    assert len(bank.get_block(bank.get_latest_hash()).get_transactions()) == 40
     alice.update(bank)
-    assert alice.get_balance() == 50
-    for _ in range(50):
+    assert alice.get_balance() == 40
+    for _ in range(40):
         tx = alice.create_transaction(bob.get_address())
         assert tx is not None
         bank.add_transaction_to_mempool(tx)
@@ -349,12 +349,16 @@ def test_multiple_transactions_from_different_wallets(bank: Bank, alice: Wallet,
     bank.end_day(limit=2)
     alice.update(bank)
     bob.update(bank)
+    charlie.update(bank)
     tx1 = alice.create_transaction(bob.get_address())
     tx2 = bob.create_transaction(charlie.get_address())
     assert tx1 is not None
     assert tx2 is not None
     assert bank.add_transaction_to_mempool(tx1)
     assert bank.add_transaction_to_mempool(tx2)
+    assert alice.get_balance() == 1
+    assert bob.get_balance() == 1
+    assert charlie.get_balance() == 0
     bank.end_day(limit=2)
 
     alice.update(bank)
@@ -364,3 +368,8 @@ def test_multiple_transactions_from_different_wallets(bank: Bank, alice: Wallet,
     assert alice.get_balance() == 0
     assert bob.get_balance() == 2
     assert charlie.get_balance() == 1
+
+    tx3 = bob.create_transaction(alice.get_address())
+    tx3._output = charlie.get_address()
+    assert bank.add_transaction_to_mempool(tx3) == False
+    
