@@ -31,6 +31,9 @@ class Wallet:
                     for tx in self.pending_transaction:
                         if tx.get_txid() == transaction.input:
                             self.pending_transaction.remove(tx)
+                    for tx in self.unspent_transaction:
+                        if tx.get_txid() == transaction.input:
+                            self.unspent_transaction.remove(tx)
             curr_blockhash = curr_block.get_prev_block_hash()
 
         self.last_updated_blockhash = latest_blockhash

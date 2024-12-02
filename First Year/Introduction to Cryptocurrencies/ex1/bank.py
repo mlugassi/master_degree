@@ -3,18 +3,19 @@ from .transaction import Transaction
 from .block import Block
 from typing import List, Optional
 import secrets
+import copy
 
 
 class Bank:
     def __init__(self) -> None:
         """Creates a bank with an empty blockchain and an empty mempool."""
-        self.blockchain: List[Block] = list()
-        self.mempool: List[Transaction] = list()
-        self.utxo: List[Transaction] = list()
+        self._blockchain: List[Block] = list()
+        self._mempool: List[Transaction] = list()
+        self._utxo: List[Transaction] = list()
 
     def find_transaction(self, txid: Optional[TxID]):
         if txid is not None:
-            for block in self.blockchain:
+            for block in self._blockchain:
                 transaction = block.find_transaction(txid)
                 if transaction is not None:
                     return transaction
@@ -36,7 +37,7 @@ class Bank:
         if input_transaction is None: # (iv)
             return False        
         
-        if transaction.input not in [txn.get_txid() for txn in self.utxo]: # (ii)
+        if transaction.input not in [txn.get_txid() for txn in self._utxo]: # (ii)
             return False
 
         if not verify((transaction.input + transaction.output), transaction.signature, input_transaction.output): # (i) # type: ignore
@@ -45,7 +46,7 @@ class Bank:
         for mempool_transaction in self.get_mempool():  # (iii)
             if mempool_transaction.input == transaction.input:
                 return False
-        self.mempool.append(transaction)
+        self._mempool.append(transaction)
         return True
 
     def end_day(self, limit: int = 10) -> BlockHash:
@@ -60,43 +61,43 @@ class Bank:
         for i, transaction in enumerate(self.get_mempool()[:]):
             if i < limit:
                 block_transactions.append(transaction)
-                self.mempool.remove(transaction)
+                self._mempool.remove(transaction)
                 input_transaction = self.find_transaction(transaction.input)
                 if input_transaction is not None:
-                    self.utxo.remove(input_transaction)
-                self.utxo.append(transaction)
+                    self._utxo.remove(input_transaction)
+                self._utxo.append(transaction)
             else:
                 break
-        self.blockchain.append(Block(block_transactions, self.get_latest_hash()))
+        self._blockchain.append(Block(block_transactions, self.get_latest_hash()))
 
     def get_block(self, block_hash: BlockHash) -> Block:
         """
         This function returns a block object given its hash. If the block doesnt exist, an exception is thrown..
         """
-        for block in self.blockchain:
+        for block in self._blockchain:
             if block.get_block_hash() == block_hash:
-                return block
+                return copy.deepcopy(block)
         raise Exception(f"Block hash {block_hash} doen't exists in the blockchain")
 
     def get_latest_hash(self) -> BlockHash:
         """
         This function returns the hash of the last Block that was created by the bank.
         """
-        if len(self.blockchain) == 0:
+        if len(self._blockchain) == 0:
             return GENESIS_BLOCK_PREV
-        return self.blockchain[-1].get_block_hash()
+        return self._blockchain[-1].get_block_hash()
 
     def get_mempool(self) -> List[Transaction]:
         """
         This function returns the list of transactions that didn't enter any block yet.
         """
-        return self.mempool
+        return self._mempool.copy()
 
     def get_utxo(self) -> List[Transaction]:
         """
         This function returns the list of unspent transactions.
         """
-        return self.utxo
+        return self._utxo.copy()
 
     def create_money(self, target: PublicKey) -> None:
         """
@@ -105,4 +106,4 @@ class Bank:
         This function is a secret function that only the bank can use (currently for tests, and will make sense in a later exercise).
         """
         new_transaction = Transaction(target, None, secrets.token_bytes(48))
-        self.mempool.append(new_transaction)
+        self._mempool.append(new_transaction)
