@@ -33,18 +33,18 @@ class Bank:
         if transaction is None:
             return False    
         
-        input_transaction = self.find_transaction(transaction.input)
+        input_transaction = self.find_transaction(transaction._input)
         if input_transaction is None: # (iv)
             return False        
         
-        if transaction.input not in [txn.get_txid() for txn in self._utxo]: # (ii)
+        if transaction._input not in [txn.get_txid() for txn in self._utxo]: # (ii)
             return False
 
-        if not verify((transaction.input + transaction.output), transaction.signature, input_transaction.output): # (i) # type: ignore
+        if not verify((transaction._input + transaction._output), transaction._signature, input_transaction._output): # (i) # type: ignore
             return False
 
         for mempool_transaction in self.get_mempool():  # (iii)
-            if mempool_transaction.input == transaction.input:
+            if mempool_transaction._input == transaction._input:
                 return False
         self._mempool.append(transaction)
         return True
@@ -62,7 +62,7 @@ class Bank:
             if i < limit:
                 block_transactions.append(transaction)
                 self._mempool.remove(transaction)
-                input_transaction = self.find_transaction(transaction.input)
+                input_transaction = self.find_transaction(transaction._input)
                 if input_transaction is not None:
                     self._utxo.remove(input_transaction)
                 self._utxo.append(transaction)

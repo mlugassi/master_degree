@@ -22,7 +22,7 @@ def test_create_money_happy_flow(bank: Bank, alice: Wallet, bob: Wallet, alice_c
     assert bob.get_balance() == 0
     utxo = bank.get_utxo()
     assert len(utxo) == 1
-    assert utxo[0].output == alice.get_address()
+    assert utxo[0]._output == alice.get_address()
 
 
 def test_transaction_happy_flow(bank: Bank, alice: Wallet, bob: Wallet,
@@ -37,7 +37,7 @@ def test_transaction_happy_flow(bank: Bank, alice: Wallet, bob: Wallet,
     assert alice.get_balance() == 0
     assert bob.get_balance() == 1
     assert not bank.get_mempool()
-    assert bank.get_utxo()[0].output == bob.get_address()
+    assert bank.get_utxo()[0]._output == bob.get_address()
     assert tx.get_txid() == bank.get_block(bank.get_latest_hash()).get_transactions()[0].get_txid()
 
 
@@ -62,7 +62,7 @@ def test_change_output_of_signed_transaction(bank: Bank, alice: Wallet, bob: Wal
     tx = alice.create_transaction(bob.get_address())
     assert tx is not None
     tx = Transaction(output=charlie.get_address(),
-                     input=tx.input, signature=tx.signature)
+                     input=tx._input, signature=tx._signature)
     assert not bank.add_transaction_to_mempool(tx)
     assert not bank.get_mempool()
     bank.end_day()
@@ -88,8 +88,8 @@ def test_change_coin_of_signed_transaction(bank: Bank, alice: Wallet, bob: Walle
     # Bob gives a coin to Charlie, and Charlie wants to steal the second one
     tx = bob.create_transaction(charlie.get_address())
     assert tx is not None
-    tx2 = Transaction(output=tx.output, input=bob_coin2.get_txid() if tx.input == bob_coin1.get_txid()
-                      else bob_coin1.get_txid(), signature=tx.signature)
+    tx2 = Transaction(output=tx._output, input=bob_coin2.get_txid() if tx._input == bob_coin1.get_txid()
+                      else bob_coin1.get_txid(), signature=tx._signature)
     assert not bank.add_transaction_to_mempool(tx2)
     assert not bank.get_mempool()
     assert bank.add_transaction_to_mempool(tx)
@@ -141,7 +141,7 @@ def test_invalid_signature(bank: Bank, alice: Wallet, bob: Wallet, alice_coin: T
     # Create a valid transaction and tamper with the signature
     tx = alice.create_transaction(bob.get_address())
     assert tx is not None
-    tampered_tx = Transaction(output=tx.output, input=tx.input, signature=b"tampered_signature")
+    tampered_tx = Transaction(output=tx._output, input=tx._input, signature=b"tampered_signature")
     assert not bank.add_transaction_to_mempool(tampered_tx)
     assert not bank.get_mempool()
 
@@ -332,11 +332,11 @@ def test_chain_rollback(bank: Bank, alice: Wallet, bob: Wallet, alice_coin: Tran
 
     # Tamper with the chain
     tampered_block1 = bank.get_block(hash1)
-    tampered_block1.prev_block_hash = "tampered_hash"  # Break integrity
+    tampered_block1._prev_block_hash = "tampered_hash"  # Break integrity
     # bank._utxo.clear()
     
     tampered_block2 = bank.get_block(hash1)
-    assert tampered_block2.prev_block_hash != tampered_block1.prev_block_hash
+    assert tampered_block2._prev_block_hash != tampered_block1._prev_block_hash
     # Test if the bank detects the issue
     # assert not bank.is_chain_valid()  # Assuming you have an integrity check method
 

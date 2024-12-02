@@ -9,15 +9,15 @@ class Transaction:
 
     def __init__(self, output: PublicKey, input: Optional[TxID], signature: Signature) -> None:
         # do not change the name of this field:
-        self.output: PublicKey = output
+        self._output: PublicKey = output
         # do not change the name of this field:
-        self.input: Optional[TxID] = input
+        self._input: Optional[TxID] = input
         # do not change the name of this field:
-        self.signature: Signature = signature
+        self._signature: Signature = signature
 
     def get_txid(self) -> TxID:
         """Returns the identifier of this transaction. This is the SHA256 of the transaction contents."""
         # TODO: Ask Ofir if we need to add the signature to the hashing as well
-        if self.input is not None:
-            return hashlib.sha256(self.input + self.output).digest()
-        return  hashlib.sha256(self.output).digest()
+        if self._input is not None:
+            return hashlib.sha256(self._input + self._output).digest()
+        return  hashlib.sha256(self._output).digest()
