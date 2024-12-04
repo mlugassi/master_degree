@@ -28,9 +28,3 @@ class Block:
             (transaction._input if transaction._input is not None else b"") + b";" + transaction._output for transaction in self._transactions
         )
         return hashlib.sha256(transactions_data).digest()
-    
-    def find_transaction(self, txid: Optional[TxID]) -> Optional[Transaction]:
-        for transaction in self._transactions:
-            if transaction.get_txid() == txid:
-                return transaction
-        return None

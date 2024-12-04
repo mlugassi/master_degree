@@ -13,12 +13,10 @@ class Bank:
         self._mempool: List[Transaction] = list()
         self._utxo: List[Transaction] = list()
 
-    def find_transaction(self, txid: Optional[TxID]):
-        if txid is not None:
-            for block in self._blockchain:
-                transaction = block.find_transaction(txid)
-                if transaction is not None:
-                    return transaction
+    def find_transaction_in_utxo(self, txid: Optional[TxID]):
+        for tx in self._utxo:
+            if tx.get_txid() == txid:
+                return tx
         return None
     
     def add_transaction_to_mempool(self, transaction: Transaction) -> bool:
@@ -33,14 +31,14 @@ class Bank:
         if transaction is None:
             return False    
         
-        input_transaction = self.find_transaction(transaction._input)
-        if input_transaction is None: # (iv)
-            return False        
-        
-        if transaction._input not in [txn.get_txid() for txn in self._utxo]: # (ii)
+        if transaction._input is None: # (iv)
             return False
 
-        if not verify((transaction._input + transaction._output), transaction._signature, input_transaction._output): # (i) # type: ignore
+        input_transaction = self.find_transaction_in_utxo(transaction._input) # (ii)
+        if input_transaction is None:
+            return False        
+            
+        if not verify((transaction._input + transaction._output), transaction._signature, input_transaction._output): # (i)
             return False
 
         for mempool_transaction in self.get_mempool():  # (iii)
@@ -62,7 +60,7 @@ class Bank:
             if i < limit:
                 block_transactions.append(transaction)
                 self._mempool.remove(transaction)
-                input_transaction = self.find_transaction(transaction._input)
+                input_transaction = self.find_transaction_in_utxo(transaction._input)
                 if input_transaction is not None:
                     self._utxo.remove(input_transaction)
                 self._utxo.append(transaction)

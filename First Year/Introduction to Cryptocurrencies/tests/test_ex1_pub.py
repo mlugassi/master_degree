@@ -372,4 +372,16 @@ def test_multiple_transactions_from_different_wallets(bank: Bank, alice: Wallet,
     tx3 = bob.create_transaction(alice.get_address())
     tx3._output = charlie.get_address()
     assert bank.add_transaction_to_mempool(tx3) == False
-    
+    import secrets
+    new_transaction = Transaction(bob.get_address(), None, secrets.token_bytes(48))
+    assert not bank.add_transaction_to_mempool(new_transaction)
+
+    tx4 = charlie.create_transaction(alice.get_address())
+    bank.add_transaction_to_mempool(tx4)
+    bank.end_day()
+    bob._unspent_transaction.append(tx4)
+    tx6 = bob.create_transaction(charlie.get_address())
+    assert not bank.add_transaction_to_mempool(tx6)
+    bank.end_day()
+    bob.update(bank)
+    charlie.update(bank)
