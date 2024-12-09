@@ -22,7 +22,7 @@ def test_create_money_happy_flow(bank: Bank, alice: Wallet, bob: Wallet, alice_c
     assert bob.get_balance() == 0
     utxo = bank.get_utxo()
     assert len(utxo) == 1
-    assert utxo[0]._output == alice.get_address()
+    assert utxo[0].output == alice.get_address()
 
 
 def test_transaction_happy_flow(bank: Bank, alice: Wallet, bob: Wallet,
@@ -37,7 +37,7 @@ def test_transaction_happy_flow(bank: Bank, alice: Wallet, bob: Wallet,
     assert alice.get_balance() == 0
     assert bob.get_balance() == 1
     assert not bank.get_mempool()
-    assert bank.get_utxo()[0]._output == bob.get_address()
+    assert bank.get_utxo()[0].output == bob.get_address()
     assert tx.get_txid() == bank.get_block(bank.get_latest_hash()).get_transactions()[0].get_txid()
 
 
@@ -62,7 +62,7 @@ def test_change_output_of_signed_transaction(bank: Bank, alice: Wallet, bob: Wal
     tx = alice.create_transaction(bob.get_address())
     assert tx is not None
     tx = Transaction(output=charlie.get_address(),
-                     input=tx._input, signature=tx._signature)
+                     input=tx.input, signature=tx.signature)
     assert not bank.add_transaction_to_mempool(tx)
     assert not bank.get_mempool()
     bank.end_day()
@@ -88,8 +88,8 @@ def test_change_coin_of_signed_transaction(bank: Bank, alice: Wallet, bob: Walle
     # Bob gives a coin to Charlie, and Charlie wants to steal the second one
     tx = bob.create_transaction(charlie.get_address())
     assert tx is not None
-    tx2 = Transaction(output=tx._output, input=bob_coin2.get_txid() if tx._input == bob_coin1.get_txid()
-                      else bob_coin1.get_txid(), signature=tx._signature)
+    tx2 = Transaction(output=tx.output, input=bob_coin2.get_txid() if tx.input == bob_coin1.get_txid()
+                      else bob_coin1.get_txid(), signature=tx.signature)
     assert not bank.add_transaction_to_mempool(tx2)
     assert not bank.get_mempool()
     assert bank.add_transaction_to_mempool(tx)
@@ -141,7 +141,7 @@ def test_invalid_signature(bank: Bank, alice: Wallet, bob: Wallet, alice_coin: T
     # Create a valid transaction and tamper with the signature
     tx = alice.create_transaction(bob.get_address())
     assert tx is not None
-    tampered_tx = Transaction(output=tx._output, input=tx._input, signature=b"tampered_signature")
+    tampered_tx = Transaction(output=tx.output, input=tx.input, signature=b"tampered_signature")
     assert not bank.add_transaction_to_mempool(tampered_tx)
     assert not bank.get_mempool()
 
@@ -370,7 +370,7 @@ def test_multiple_transactions_from_different_wallets(bank: Bank, alice: Wallet,
     assert charlie.get_balance() == 1
 
     tx3 = bob.create_transaction(alice.get_address())
-    tx3._output = charlie.get_address()
+    tx3.output = charlie.get_address()
     assert bank.add_transaction_to_mempool(tx3) == False
     import secrets
     new_transaction = Transaction(bob.get_address(), None, secrets.token_bytes(48))
@@ -379,9 +379,107 @@ def test_multiple_transactions_from_different_wallets(bank: Bank, alice: Wallet,
     tx4 = charlie.create_transaction(alice.get_address())
     bank.add_transaction_to_mempool(tx4)
     bank.end_day()
-    bob._unspent_transaction.append(tx4)
+    bob.unspent_transaction.append(tx4)
     tx6 = bob.create_transaction(charlie.get_address())
     assert not bank.add_transaction_to_mempool(tx6)
     bank.end_day()
     bob.update(bank)
     charlie.update(bank)
+
+
+def test_send_two_coins_happy_flow(bank: Bank, alice: Wallet, bob: Wallet, alice_coin: Transaction) -> None:
+    bank.create_money(alice.get_address())
+    bank.end_day()
+    alice.update(bank)
+
+    tx = alice.create_transaction(bob.get_address())
+    assert tx is not None
+
+    bank.add_transaction_to_mempool(tx)
+
+    tx2 = alice.create_transaction(bob.get_address())
+    assert tx2 is not None
+
+
+def test_double_spend_next_day(bank: Bank, alice: Wallet, bob: Wallet, charlie: Wallet, alice_coin: Transaction) -> None:
+    tx1 = alice.create_transaction(bob.get_address())
+    assert tx1 is not None
+
+    # Make Alice spend the same coin
+    bank.end_day()
+    alice.update(bank)
+    alice.unfreeze_all()
+
+    tx2 = alice.create_transaction(charlie.get_address())
+    assert tx2 is not None
+
+    assert bank.add_transaction_to_mempool(tx1)
+
+    bank.end_day()
+    assert not bank.add_transaction_to_mempool(tx2)
+
+    bank.end_day()
+    alice.update(bank)
+    bob.update(bank)
+    charlie.update(bank)
+
+    assert alice.get_balance() == 0
+
+
+def test_re_transmit_similar_txs(bank: Bank, alice: Wallet, bob: Wallet) -> None:
+    # If they fail here, then they didn't add randomness to each tx
+    # Creating money twice in the same block is important for the next ex.
+    bank.create_money(alice.get_address())
+    bank.create_money(alice.get_address())
+    bank.end_day()
+
+    alice.update(bank)
+
+    tx = alice.create_transaction(bob.get_address())
+    assert tx is not None
+
+    assert bank.add_transaction_to_mempool(tx)
+    assert not bank.add_transaction_to_mempool(tx)
+
+    tx2 = alice.create_transaction(bob.get_address())
+    assert tx2 is not None
+    assert bank.add_transaction_to_mempool(tx2)
+
+
+def test_alice_sends_two_coins_to_bob_then_bob_sends_both_to_charlie(bank: Bank, alice: Wallet, bob: Wallet, charlie: Wallet) -> None:
+    # If they fail here, then they didn't add randomness to each tx
+    # Creating money twice in the same block is important for the next ex.
+    bank.create_money(alice.get_address())
+    bank.create_money(alice.get_address())
+    bank.end_day()
+
+    alice.update(bank)
+
+    tx1 = alice.create_transaction(bob.get_address())
+    assert tx1 is not None
+
+    tx2 = alice.create_transaction(bob.get_address())
+    assert tx2 is not None
+
+    assert bank.add_transaction_to_mempool(tx1)
+    assert bank.add_transaction_to_mempool(tx2)
+
+
+def test_transaction_happy_flow(bank: Bank, alice: Wallet, bob: Wallet, alice_coin: Transaction) -> None:
+    tx = alice.create_transaction(bob.get_address())
+    assert tx is not None
+
+    assert bank.add_transaction_to_mempool(tx)
+    assert bank.get_mempool() == [tx]
+
+    bank.end_day(limit=1)
+    alice.update(bank)
+    bob.update(bank)
+
+    assert alice.get_balance() == 0
+    assert bob.get_balance() == 1
+    assert not bank.get_mempool()
+    assert bank.get_utxo()[0].output == bob.get_address()
+
+    assert tx.get_txid() == bank.get_block(bank.get_latest_hash()).get_transactions()[0].get_txid()
+

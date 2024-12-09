@@ -2,7 +2,6 @@ from .utils import BlockHash, PublicKey, TxID
 from .transaction import Transaction
 from typing import List, Optional
 import hashlib
-import copy
 
 class Block:
     def __init__(self, transactions: List[Transaction], prev_block_hash: BlockHash):
@@ -23,8 +22,7 @@ class Block:
         return self._prev_block_hash
 
     def calc_block_hash(self):
-        # TODO: To check if need to add the signature here
         transactions_data = b"|".join(
-            (transaction._input if transaction._input is not None else b"") + b";" + transaction._output for transaction in self._transactions
+            (transaction.input if transaction.input is not None else b"") + b";" + transaction.output + b";" + transaction.signature for transaction in self._transactions
         )
-        return hashlib.sha256(transactions_data).digest()
+        return hashlib.sha256(transactions_data + self.get_prev_block_hash()).digest()
