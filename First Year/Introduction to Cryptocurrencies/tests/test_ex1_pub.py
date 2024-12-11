@@ -332,11 +332,11 @@ def test_chain_rollback(bank: Bank, alice: Wallet, bob: Wallet, alice_coin: Tran
 
     # Tamper with the chain
     tampered_block1 = bank.get_block(hash1)
-    tampered_block1._prev_block_hash = "tampered_hash"  # Break integrity
+    tampered_block1.prev_block_hash = "tampered_hash"  # Break integrity
     # bank._utxo.clear()
     
     tampered_block2 = bank.get_block(hash1)
-    assert tampered_block2._prev_block_hash != tampered_block1._prev_block_hash
+    assert tampered_block2.prev_block_hash != tampered_block1.prev_block_hash
     # Test if the bank detects the issue
     # assert not bank.is_chain_valid()  # Assuming you have an integrity check method
 

@@ -1,6 +1,6 @@
 from .utils import PublicKey, Signature, TxID
 from typing import Optional
-
+import hashlib
 
 class Transaction:
     """Represents a transaction that moves a single coin
@@ -20,7 +20,9 @@ class Transaction:
         This function is used by the tests to compute the tx hash. Make sure to compute this every time 
         directly from the data in the transaction object, and not cache the result
         """
-        raise NotImplementedError()
+        if self.input is not None:
+            return hashlib.sha256(self.input + self.output + self.signature).digest()
+        return  hashlib.sha256(self.output + self.signature).digest()
 
 
 """
