@@ -12,7 +12,7 @@ x² and x⁴. This will help you understand the fundamental concepts of optimiza
 
 def x2(x):
     """Function that returns x²"""
-    return x * x
+    return np.power(x, 2)
 
 
 def x2_(x):
@@ -25,7 +25,7 @@ def x2_(x):
 
 def x4(x):
     """Function that returns x⁴"""
-    return x ** 4
+    return np.power(x, 4)
 
 
 def x4_(x):
@@ -33,7 +33,7 @@ def x4_(x):
     TODO: Implement the derivative of x⁴
     Hint: The derivative of x⁴ is 4x³
     """
-    return 4 * (x ** 3)
+    return 4 * np.power(x, 3)
 
 
 """
@@ -54,7 +54,8 @@ def momentum_update(velocity, gradient, momentum=0.9):
     Returns:
         Updated velocity
     """
-    return None  # Replace with your implementation
+    new_velocity = (velocity * momentum) - gradient
+    return new_velocity
 
 
 """
@@ -66,14 +67,22 @@ Implement and compare four different optimization methods:
 3. Nesterov Accelerated Gradient (NAG)
 4. AdaGrad
 """
+9
+def calc_gradient(dfx, lr):
+    return lr * dfx
 
+def gradient_descent_update(x, dfx, lr):
+    return x - calc_gradient(dfx, lr)
 
-def nesterov_update(x, velocity, gradient_func, momentum=0.9):
+def nesterov_update(x, velocity, gradient_func, derivative_func, momentum=0.9):
     """
     TODO: Implement Nesterov update
     Hint: Look ahead using current velocity before computing gradient
     """
-    return None  # Replace with your implementation
+    x_ahead = x + (velocity * momentum)
+    new_velocity = (velocity * momentum) - gradient_func(derivative_func(x_ahead), lr)
+
+    return new_velocity
 
 
 def adagrad_update(gradient, historical_gradient):
@@ -81,26 +90,56 @@ def adagrad_update(gradient, historical_gradient):
     TODO: Implement AdaGrad update
     Hint: Use historical gradient to adjust learning rate
     """
-    return None  # Replace with your implementation
+    return - (gradient / np.sqrt(historical_gradient) + 1e-7)
 
 
 # Example usage and testing code
 if __name__ == "__main__":
     # Starting points
     X2 = X4 = X2m = X4m = X2n = X4n = X2g = X4g = 10.0
+    X2m_velocity = X4m_velocity = X2n_velocity = X4n_velocity = 0
+    X2g_grad_squred = X4g_grad_squred = 0
 
     # Hyperparameters (you should tune these)
-    lr = 0.01  # Learning rate for basic gradient descent
-    momentum = 0.9  # Momentum coefficient
-    num_steps = 100  # Number of optimization steps
+    lr = 0.001  # Learning rate for basic gradient descent
+    momentum = 0.5 # Momentum coefficient
+    num_steps = 10000  # Number of optimization steps
 
     # Storage for plotting
     history = {
-        'sgd_x2': [], 'sgd_x4': [],
-        'momentum_x2': [], 'momentum_x4': [],
-        'nag_x2': [], 'nag_x4': [],
-        'adagrad_x2': [], 'adagrad_x4': []
+        'sgd_x2': [X2], 'sgd_x4': [X4],
+        'momentum_x2': [X2m], 'momentum_x4': [X4m],
+        'nag_x2': [X2n], 'nag_x4': [X4n],
+        'adagrad_x2': [X2g], 'adagrad_x4': [X2g]
     }
+
+    for i in range(num_steps):
+        X2 = gradient_descent_update(X2, x2_(X2), lr)
+        X4 = gradient_descent_update(X4, x4_(X4), lr)
+
+        X2m_velocity = momentum_update(X2m_velocity, calc_gradient(x2_(X2m), lr), momentum)
+        X4m_velocity = momentum_update(X4m_velocity, calc_gradient(x4_(X4m), lr), momentum)
+        X2m += X2m_velocity
+        X4m += X4m_velocity
+
+        X2n_velocity = nesterov_update(X2n, X2n_velocity, calc_gradient, x2_, momentum)
+        X4n_velocity = nesterov_update(X4n, X4n_velocity, calc_gradient, x4_, momentum)
+        X2n += X2n_velocity
+        X4n += X4n_velocity
+
+        X2g_grad_squred += np.power(x2_(X2g), 2)
+        X4g_grad_squred += np.power(x4_(X4g), 2)
+        X2g += adagrad_update(calc_gradient(x2_(X2g), lr), X2g_grad_squred)
+        X4g += adagrad_update(calc_gradient(x4_(X4g), lr), X4g_grad_squred)
+
+        history['sgd_x2'].append(X2)
+        history['sgd_x4'].append(X4)
+        history['momentum_x2'].append(X2m)
+        history['momentum_x4'].append(X4m)
+        history['nag_x2'].append(X2n)
+        history['nag_x4'].append(X4n)
+        history['adagrad_x2'].append(X2g)
+        history['adagrad_x4'].append(X4g)
 
     # TODO: Implement the training loops for each method
 
@@ -108,6 +147,36 @@ if __name__ == "__main__":
 
     # TODO: Compare and analyze the results
 
+    # Generate the plots
+    methods = ['sgd', 'momentum', 'nag', 'adagrad']
+    colors = {'sgd': 'blue', 'momentum': 'green', 'nag': 'red', 'adagrad': 'purple'}
+
+    # Create one figure with two subplots
+    plt.figure(figsize=(12, 6))
+
+    # Subplot for x^2
+    plt.subplot(1, 2, 1)
+    for method in methods:
+        plt.plot(history[f"{method}_x2"], label=method.upper(), color=colors[method])
+    plt.title(f"Covergence for $x^2$ with learning rate = {lr}, mu = {momentum}")
+    plt.xlabel("Steps")
+    plt.ylabel("Value")
+    plt.legend()
+    plt.grid(True)
+
+    # Subplot for x^4
+    plt.subplot(1, 2, 2)
+    for method in methods:
+        plt.plot(history[f"{method}_x4"], label=method.upper(), color=colors[method])
+    plt.title(f"Covergence for $x^4$ with learning rate = {lr}, mu = {momentum}")
+    plt.xlabel("Steps")
+    plt.ylabel("Value")
+    plt.legend()
+    plt.grid(True)
+
+    # Show the single figure with both subplots
+    plt.tight_layout()
+    plt.show()
 """
 Submission Requirements:
 1. Implement all TODO sections
