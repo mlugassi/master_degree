@@ -2,14 +2,21 @@ from .utils import *
 from .block import Block
 from .transaction import Transaction
 from typing import Set, Optional, List
-
+from secrets import token_bytes
 
 class Node:
     def __init__(self) -> None:
         """Creates a new node with an empty mempool and no connections to others.
         Blocks mined by this node will reward the miner with a single new coin,
         created out of thin air and associated with the mining reward address"""
-        raise NotImplementedError()
+        self.blockchain: List[Block] = list()
+        self.mempool: List[Transaction] = list()
+        self.utxo: List[Transaction] = list()
+        self.private_key, self.public_key = gen_keys()
+        self.unspent_transaction: List[Transaction] = list()
+        self.pending_transaction: List[Transaction] = list()
+        self.connected_nodes: Set['Node'] = set()
+        # self.last_updated_blockhash: BlockHash = GENESIS_BLOCK_PREV
 
     def connect(self, other: 'Node') -> None:
         """connects this node to another node for block and transaction updates.
@@ -17,35 +24,66 @@ class Node:
         Raises an exception if asked to connect to itself.
         The connection itself does not trigger updates about the mempool,
         but nodes instantly notify of their latest block to each other (see notify_of_block)"""
-        raise NotImplementedError()
+        if other.get_address() == self.get_address():
+            raise Exception("You are trying to connect to yourself")
+        if other.get_address() not in [n.get_address() for n in self.connected_nodes]:
+            self.connected_nodes.update(other)
+        other.connect(self) # TODO: check if it is needed or it being done from outside
+        other.notify_of_block(self.get_latest_hash(), self)
 
     def disconnect_from(self, other: 'Node') -> None:
         """Disconnects this node from the other node. If the two were not connected, then nothing happens"""
-        raise NotImplementedError()
+        for n in self.connected_nodes:
+            if n.get_address() == other.get_address():
+                self.connected_nodes.remove(n)
+                other.disconnect_from(self)
+                break
 
     def get_connections(self) -> Set['Node']:
         """Returns a set containing the connections of this node."""
-        raise NotImplementedError()
+        return self.connected_nodes
 
     def add_transaction_to_mempool(self, transaction: Transaction) -> bool:
         """
         This function inserts the given transaction to the mempool.
-        It will return False iff any of the following conditions hold:
+        It will return False if any of the following conditions hold:
         (i) the transaction is invalid (the signature fails)
         (ii) the source doesn't have the coin that it tries to spend
         (iii) there is contradicting tx in the mempool.
 
         If the transaction is added successfully, then it is also sent to neighboring nodes.
         """
-        raise NotImplementedError()
+        if transaction is None:
+            return False    
+        
+        #TODO check if we need to add that check
+        # if transaction.input is None: # (iv)
+        #     return False
 
+        input_transaction = self.find_transaction_in_utxo(transaction.input) # (ii)
+        if input_transaction is None:
+            return False        
+            
+        if not verify((transaction.input + transaction.output), transaction.signature, input_transaction.output): # (i)
+            return False
+
+        for mempool_transaction in self.get_mempool():  # (iii)
+            if mempool_transaction.input == transaction.input:
+                return False
+            
+        self.mempool.append(transaction)
+        for neighbor in self.connected_nodes:
+            neighbor.add_transaction_to_mempool(transaction)
+
+        return True
+    
     def notify_of_block(self, block_hash: BlockHash, sender: 'Node') -> None:
         """This method is used by a node's connection to inform it that it has learned of a
         new block (or created a new block). If the block is unknown to the current Node, The block is requested.
         We assume the sender of the message is specified, so that the node can choose to request this block if
         it wishes to do so.
         (if it is part of a longer unknown chain, these blocks are requested as well, until reaching a known block).
-        Upon receiving new blocks, they are processed and and checked for validity (check all signatures, hashes,
+        do, they are processed and and checked for validity (check all signatures, hashes,
         block size , etc).
         If the block is on the longest chain, the mempool and utxo change accordingly.
         If the block is indeed the tip of the longest chain,
@@ -58,7 +96,54 @@ class Node:
         transactions that were rolled back and can still be executed are re-introduced into the mempool if they do
         not conflict.
         """
-        raise NotImplementedError()
+        my_block = self.blockchain[-1]
+        
+        if my_block.get_block_hash() == block_hash:
+                return None # TODO need to re check if need to do something else in that case
+        sender_block = sender.get_block(block_hash)
+        sender_new_blocks: List[Block] = list()
+        my_new_blocks: List[Block] = list()
+                
+        idx_found = None
+        while not idx_found:
+            for i, my_block in enumerate(self.blockchain.reverse()):
+                if my_block.get_block_hash() == sender_block.get_block_hash():
+                    idx_found = i
+                    break
+            else:
+                sender_new_blocks.insert(0, sender_block)
+                sender_block = sender.get_block(sender_block.get_prev_block_hash())
+                 
+       
+        # while my_block.get_block_hash() != sender_block.get_block_hash():
+        #     for my_block in self.blockchain.reverse():
+        #         if my_block.get_block_hash() == block_hash:
+
+        # # validate_block(Signature, hashes, block_size)
+            
+        # new_block = sender.get_block(block_hash)
+
+        # latest_blockhash = bank.get_latest_hash()
+        # curr_blockhash = latest_blockhash
+
+        # while curr_blockhash != self.last_updated_blockhash:
+        #     curr_block = bank.get_block(curr_blockhash)
+        #     transactions = curr_block.get_transactions()
+        #     for transaction in transactions:
+        #         if transaction.output == self.get_address():
+        #             self.unspent_transaction.append(transaction)
+        #         else:
+        #             for tx in self.pending_transaction:
+        #                 if tx.get_txid() == transaction.input:
+        #                     self.pending_transaction.remove(tx)
+        #             for tx in self.unspent_transaction:
+        #                 if tx.get_txid() == transaction.input:
+        #                     self.unspent_transaction.remove(tx)
+        #     curr_blockhash = curr_block.get_prev_block_hash()
+
+        # self.last_updated_blockhash = latest_blockhash
+
+        # raise NotImplementedError()
 
     def mine_block(self) -> BlockHash:
         """"
@@ -68,34 +153,56 @@ class Node:
         money and adds it to the address of this miner.
         Money creation transactions have None as their input, and instead of a signature, contain 48 random bytes.
         If a new block is created, all connections of this node are notified by calling their notify_of_block() method.
+        TODO: to check when need to return None in this func
         The method returns the new block hash (or None if there was no block)
         """
-        raise NotImplementedError()
+        transactions = List[Transaction] = list()
+
+        transactions.append(Transaction(self.get_address(), None, token_bytes(48)))
+        
+        for tx in self.get_mempool():
+            if len(transactions) < BLOCK_SIZE:
+                transactions.append(tx)
+
+        if len(self.get_mempool()) > BLOCK_SIZE-1:
+            self.mempool = self.mempool[BLOCK_SIZE-1:]
+        else:
+            self.clear_mempool()
+
+        self.blockchain.append(Block(transactions,self.get_latest_hash()))
+        for node in self.connected_nodes:
+            node.notify_of_block(self.get_latest_hash(), self)
+        
+        return self.get_latest_hash()
 
     def get_block(self, block_hash: BlockHash) -> Block:
         """
         This function returns a block object given its hash.
-        If the block doesnt exist, a ValueError is raised.
+        If the block doesn't exist, a ValueError is raised.
         """
-        raise NotImplementedError()
+        for block in self.blockchain:
+            if block.get_block_hash() == block_hash:
+                return block
+            
+        raise ValueError(f"Block hash {block_hash} doen't exists in the blockchain.")
 
     def get_latest_hash(self) -> BlockHash:
         """
         This function returns the last block hash known to this node (the tip of its current chain).
         """
-        raise NotImplementedError()
+        self.blockchain[-1].get_block_hash()
 
     def get_mempool(self) -> List[Transaction]:
         """
         This function returns the list of transactions that didn't enter any block yet.
         """
-        raise NotImplementedError()
+        return self.mempool
 
     def get_utxo(self) -> List[Transaction]:
         """
         This function returns the list of unspent transactions.
         """
-        raise NotImplementedError()
+        return self.utxo
 
     # ------------ Formerly wallet methods: -----------------------
 
@@ -110,28 +217,49 @@ class Node:
 
         The transaction is added to the mempool (and as a result is also published to neighboring nodes)
         """
-        raise NotImplementedError()
-
+        if not self.unspent_transaction:
+            return None
+        
+        chosen_transction = self.unspent_transaction.pop()
+        self.pending_transaction.append(chosen_transction)
+        signature = sign(chosen_transction.get_txid() + target, self.private_key)
+        new_tx = Transaction(output=target, input=chosen_transction.get_txid(), signature=signature)
+        if self.add_transaction_to_mempool(new_tx):
+            return new_tx
+        return None
+        
     def clear_mempool(self) -> None:
         """
         Clears the mempool of this node. All transactions waiting to be entered into the next block are gone.
         """
-        raise NotImplementedError()
 
+        self.unspent_transaction.clear()
+        self.pending_transaction.clear()
+        self.mempool.clear()
+
+        for tx in self.get_utxo():
+            if tx.output == self.get_address():
+                self.unspent_transaction.append(tx)
+   
     def get_balance(self) -> int:
         """
         This function returns the number of coins that this node owns according to its view of the blockchain.
         Coins that the node owned and sent away will still be considered as part of the balance until the spending
         transaction is in the blockchain.
         """
-        raise NotImplementedError()
+        return len(self.unspent_transaction) + len(self.pending_transaction)
 
     def get_address(self) -> PublicKey:
         """
         This function returns the public address of this node (its public key).
         """
-        raise NotImplementedError()
+        return self.public_key
 
+    def find_transaction_in_utxo(self, txid: Optional[TxID]):
+        for tx in self.utxo:
+            if tx.get_txid() == txid:
+                return tx
+        return None
 
 """
 Importing this file should NOT execute code. It should only create definitions for the objects above.
