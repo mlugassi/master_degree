@@ -1,22 +1,13 @@
+from ConnectFourTypes import *
+
 
 class ConnectFour:
 
-    # Some constants that I want to use to fill the board.
-    RED = 1
-    YELLOW = -1
-    EMPTY = 0
-
-    # Game status constants
-    RED_WIN = 1
-    YELLOW_WIN = -1
-    DRAW = 0
-    ONGOING = -17  # Completely arbitrary
-
     def __init__(self):
-        self.board = [[self.EMPTY for _ in range(6)] for _ in range(7)]
+        self.board = [[CellStatus.EMPTY for _ in range(6)] for _ in range(7)]
         self.heights = [0 for _ in range(7)]  # The column heights in the board.
-        self.player = self.RED
-        self.status = self.ONGOING
+        self.player = Player.RED
+        self.status = GameStatus.ONGOING
 
     def legal_moves(self):
         return [i for i in range(7) if self.heights[i] < 6]
@@ -28,18 +19,18 @@ class ConnectFour:
         if self.winning_move(move):
             self.status = self.player
         elif len(self.legal_moves()) == 0:
-            self.status = self.DRAW
+            self.status = GameStatus.DRAW
         else:
             self.player = self.other(self.player)
 
     def other(self, player):
-        return self.RED if player == self.YELLOW else self.YELLOW
+        return Player.RED if player == Player.YELLOW else Player.YELLOW
 
     def unmake(self, move):
         self.heights[move] -= 1
-        self.board[move][self.heights[move]] = self.EMPTY
+        self.board[move][self.heights[move]] = CellStatus.EMPTY
         self.player = self.other(self.player)
-        self.status = self.ONGOING
+        self.status = GameStatus.ONGOING
 
     def clone(self):
         clone = ConnectFour()
@@ -85,14 +76,20 @@ class ConnectFour:
         for r in range(5, -1, -1):  # From top row to bottom
             row = []
             for c in range(7):
-                if self.board[c][r] == self.RED:
+                if self.board[c][r] == CellStatus.RED:
                     row.append("R")
-                elif self.board[c][r] == self.YELLOW:
+                elif self.board[c][r] == CellStatus.YELLOW:
                     row.append("Y")
                 else:
                     row.append(".")
             rows.append(" ".join(row))
         return "\n".join(rows)
+
+def humen_move():
+    pass
+
+def computer_move():
+    pass
 
 # Main function for debugging purposes: Allows two humans to play the game.
 def main():
@@ -105,9 +102,9 @@ def main():
     print("Welcome to Connect Four!")
     print("Player 1 is RED (R) and Player 2 is YELLOW (Y).\n")
 
-    while game.status == game.ONGOING:
+    while game.status == GameStatus.ONGOING:
         print(game)
-        print("\nCurrent Player:", "RED" if game.player == game.RED else "YELLOW")
+        print("\nCurrent Player:", "RED" if game.player == Player.RED else "YELLOW")
         try:
             move = int(input("Enter a column (0-6): "))
             if move not in game.legal_moves():
@@ -120,9 +117,9 @@ def main():
             print("Move out of bounds. Try again.")
 
     print(game)
-    if game.status == game.RED:
+    if game.status == GameStatus.RED_WIN:
         print("\nRED (Player 1) wins!")
-    elif game.status == game.YELLOW:
+    elif game.status == GameStatus.YELLOW_WIN:
         print("\nYELLOW (Player 2) wins!")
     else:
         print("\nIt's a draw!")
