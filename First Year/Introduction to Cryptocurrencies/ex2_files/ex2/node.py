@@ -3,6 +3,7 @@ from .block import Block
 from .transaction import Transaction
 from typing import Set, Optional, List
 from secrets import token_bytes
+from hashlib import sha256
 
 class Node:
     def __init__(self) -> None:
@@ -73,20 +74,21 @@ class Node:
             
         self.mempool.append(transaction)
         for neighbor in self.connected_nodes:
-            neighbor.add_transaction_to_mempool(transaction)
+            neighbor.add_transaction_to_mempool(transaction) #TODO do we need to check if the new transction was successfuly added the the neighbor's mempool
 
         return True
     
+
     def notify_of_block(self, block_hash: BlockHash, sender: 'Node') -> None:
         """This method is used by a node's connection to inform it that it has learned of a
         new block (or created a new block). If the block is unknown to the current Node, The block is requested.
         We assume the sender of the message is specified, so that the node can choose to request this block if
         it wishes to do so.
         (if it is part of a longer unknown chain, these blocks are requested as well, until reaching a known block).
-        do, they are processed and and checked for validity (check all signatures, hashes,
+        do, they are processed and checked for validity (check all signatures, hashes,
         block size , etc).
         If the block is on the longest chain, the mempool and utxo change accordingly.
-        If the block is indeed the tip of the longest chain,
+        If the block is indeed the top of the longest chain,
         a notification of this block is sent to the neighboring nodes of this node.
         (no need to notify of previous blocks -- the nodes will fetch them if needed)
 
@@ -96,54 +98,56 @@ class Node:
         transactions that were rolled back and can still be executed are re-introduced into the mempool if they do
         not conflict.
         """
-        my_block = self.blockchain[-1]
-        
-        if my_block.get_block_hash() == block_hash:
-                return None # TODO need to re check if need to do something else in that case
-        sender_block = sender.get_block(block_hash)
-        sender_new_blocks: List[Block] = list()
-        my_new_blocks: List[Block] = list()
-                
-        idx_found = None
-        while not idx_found:
-            for i, my_block in enumerate(self.blockchain.reverse()):
-                if my_block.get_block_hash() == sender_block.get_block_hash():
-                    idx_found = i
+        curr_block_hash = block_hash
+        unkonwn_blocks_to_me: List[Block] = list()
+        num_of_unknown_blocks_to_sender = None
+
+        while num_of_unknown_blocks_to_sender is None:
+            for i, my_block in enumerate(self.blockchain[::-1]):
+                if my_block.get_block_hash() == curr_block_hash:
+                    num_of_unknown_blocks_to_sender = i
                     break
-            else:
-                sender_new_blocks.insert(0, sender_block)
-                sender_block = sender.get_block(sender_block.get_prev_block_hash())
-                 
-       
-        # while my_block.get_block_hash() != sender_block.get_block_hash():
-        #     for my_block in self.blockchain.reverse():
-        #         if my_block.get_block_hash() == block_hash:
+            else: #TODO check what will be happen when the node's block chain is empty, will it call that else?
+                sender_block = sender.get_block(block_hash)
+                if not self.validate_block(sender, sender_block): #TODO need to check what if one of the new sender blocks is non-valid (and not the first one), should I ignore the whole new blocks or take all the valid block till the previus of the non valid block (what if we have non valid for the hash itself)
+                    return None    
+                unkonwn_blocks_to_me.insert(0, sender_block)
+                if sender_block.get_prev_block_hash() != GENESIS_BLOCK_PREV:
+                    curr_block_hash = sender_block.get_prev_block_hash()
+                else:
+                    num_of_unknown_blocks_to_sender = len(self.blockchain)
+        
+        if num_of_unknown_blocks_to_sender >= len(unkonwn_blocks_to_me): #TODO check what we should do, if on both chains we have new blocks but with the same length 
+            return None            
 
-        # # validate_block(Signature, hashes, block_size)
-            
-        # new_block = sender.get_block(block_hash)
+        removed_from_mempool = list()
+        for i in range(num_of_unknown_blocks_to_sender):
+            block = self.blockchain.pop()
+            for removed_tx in block.get_transactions():
+                self.remove_transaction_from_utxo(removed_tx)
+                self.mempool.append(removed_tx)
+                for tx in self.mempool.copy():
+                    if tx.input == removed_tx.get_txid():
+                        removed_from_mempool.append(tx)
+                        self.mempool.remove(tx)
+                        break
 
-        # latest_blockhash = bank.get_latest_hash()
-        # curr_blockhash = latest_blockhash
+        for block in unkonwn_blocks_to_me:
+            self.blockchain.append(block)
+            for tx in block.get_transactions():
+                self.add_transaction_to_utxo(tx)
 
-        # while curr_blockhash != self.last_updated_blockhash:
-        #     curr_block = bank.get_block(curr_blockhash)
-        #     transactions = curr_block.get_transactions()
-        #     for transaction in transactions:
-        #         if transaction.output == self.get_address():
-        #             self.unspent_transaction.append(transaction)
-        #         else:
-        #             for tx in self.pending_transaction:
-        #                 if tx.get_txid() == transaction.input:
-        #                     self.pending_transaction.remove(tx)
-        #             for tx in self.unspent_transaction:
-        #                 if tx.get_txid() == transaction.input:
-        #                     self.unspent_transaction.remove(tx)
-        #     curr_blockhash = curr_block.get_prev_block_hash()
+        for removed_tx in removed_from_mempool:
+            for tx in self.get_utxo():
+                if removed_tx.input == tx.get_txid():
+                    self.mempool.append(removed_tx)
+                    break
+        
+        if set(self.utxo) - set(sender.utxo) or set(sender.utxo) - set(self.utxo):
+            raise Exception("The utxo is not eq")
 
-        # self.last_updated_blockhash = latest_blockhash
-
-        # raise NotImplementedError()
+        for neighbor in self.connected_nodes:
+             neighbor.notify_of_block(block_hash, self)
 
     def mine_block(self) -> BlockHash:
         """"
@@ -156,20 +160,23 @@ class Node:
         TODO: to check when need to return None in this func
         The method returns the new block hash (or None if there was no block)
         """
-        transactions = List[Transaction] = list()
+        transactions: List[Transaction] = list()
 
         transactions.append(Transaction(self.get_address(), None, token_bytes(48)))
         
         for tx in self.get_mempool():
-            if len(transactions) < BLOCK_SIZE:
+            if len(transactions) <= BLOCK_SIZE:
                 transactions.append(tx)
 
         if len(self.get_mempool()) > BLOCK_SIZE-1:
             self.mempool = self.mempool[BLOCK_SIZE-1:]
         else:
-            self.clear_mempool()
-
-        self.blockchain.append(Block(transactions,self.get_latest_hash()))
+            self.mempool.clear()
+        
+        for tx in transactions:
+            self.add_transaction_to_utxo(tx)
+            
+        self.blockchain.append(Block(self.get_latest_hash(),transactions))
         for node in self.connected_nodes:
             node.notify_of_block(self.get_latest_hash(), self)
         
@@ -190,7 +197,10 @@ class Node:
         """
         This function returns the last block hash known to this node (the tip of its current chain).
         """
-        self.blockchain[-1].get_block_hash()
+
+        if len(self.blockchain) == 0:
+            return GENESIS_BLOCK_PREV
+        return self.blockchain[-1].get_block_hash()
 
     def get_mempool(self) -> List[Transaction]:
         """
@@ -223,7 +233,7 @@ class Node:
         chosen_transction = self.unspent_transaction.pop()
         self.pending_transaction.append(chosen_transction)
         signature = sign(chosen_transction.get_txid() + target, self.private_key)
-        new_tx = Transaction(output=target, input=chosen_transction.get_txid(), signature=signature)
+        new_tx = Transaction(output=target, tx_input=chosen_transction.get_txid(), signature=signature)
         if self.add_transaction_to_mempool(new_tx):
             return new_tx
         return None
@@ -260,6 +270,82 @@ class Node:
             if tx.get_txid() == txid:
                 return tx
         return None
+
+    def is_block_valid(block: Block):
+        pass
+
+    def find_transaction(self, txid: TxID) -> List[Transaction]:
+        found_transactions: List[Transaction] = list()
+        for block in self.blockchain:
+            tx = block.find_transaction(txid)
+            if tx:
+                found_transactions.append(tx)
+        return found_transactions
+
+    def add_transaction_to_utxo(self, added_tx: Transaction) -> None:
+        self.utxo.append(added_tx)
+        
+        if added_tx.output == self.get_address():
+            self.unspent_transaction.append(added_tx)
+
+        for tx in self.unspent_transaction.copy():
+            if tx.get_txid() == added_tx.input:
+                self.unspent_transaction.remove(tx)
+                break
+        else:
+            for tx in self.pending_transaction.copy():
+                if tx.get_txid() == added_tx.input:
+                    self.pending_transaction.remove(tx)
+                    break
+
+    def remove_transaction_from_utxo(self, removed_tx: Transaction) -> None:
+        self.utxo.remove(removed_tx)
+        if removed_tx.output == self.get_address():
+            if removed_tx in self.unspent_transaction:
+                self.unspent_transaction.remove(removed_tx)
+            elif removed_tx in self.pending_transaction:
+                self.pending_transaction.remove(removed_tx)
+            else:
+                raise Exception("Transaction must be in pending or unsent lists")            
+        
+        input_tx = self.find_transaction(removed_tx.input)[0]
+        if len(self.find_transaction(removed_tx.input)) != 1: raise Exception("LUGASSI - found more than one inputs for a tx")
+        self.utxo.append(input_tx)
+        if input_tx.output == self.get_address():
+            self.unspent_transaction.append(input_tx)
+    
+    def calc_block_hash(self, transactions: List[Transaction], prev_block_hash: BlockHash):
+        transactions_data = b"|".join(
+            (transaction.input if transaction.input is not None else b"") + b";" + transaction.output + b";" + transaction.signature for transaction in transactions
+        )
+        return sha256(transactions_data + prev_block_hash).digest()
+        
+    def validate_block(self, sender: 'Node', block: Block) -> bool:
+        # num of transaction in block
+        if len(block.get_transactions()) > BLOCK_SIZE:
+            return False
+        # any tx in tx of block
+        num_of_mined_transctions = 0
+        for tx in block.get_transactions():
+            if not tx:
+                return False
+            if tx.input is None:
+                num_of_mined_transctions += 1
+            else:
+                input_tx = sender.find_transaction(tx.input)
+                if len(input_tx) != 1:
+                    return False
+                if not verify((tx.input + tx.output), tx.signature, input_tx[0].output): # (i)
+                    return False
+        if num_of_mined_transctions != 1:
+            return False
+        
+        if self.calc_block_hash(block.get_transactions(), block.get_prev_block_hash()) != block.get_block_hash():
+            return False
+        # hashing
+        # double spent
+        # more or less of node's created transction (should be only 1)
+        
 
 """
 Importing this file should NOT execute code. It should only create definitions for the objects above.

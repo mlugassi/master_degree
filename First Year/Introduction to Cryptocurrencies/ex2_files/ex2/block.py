@@ -8,7 +8,7 @@ class Block:
     """This class represents a block."""
 
     # implement __init__ as you see fit.
-    def __init__(self, transactions: List[Transaction], prev_block_hash: BlockHash):
+    def __init__(self, prev_block_hash: BlockHash, transactions: List[Transaction] ):
         self.transactions: List[Transaction] = transactions
         self.prev_block_hash: BlockHash = prev_block_hash
         self.block_hash: BlockHash = self.calc_block_hash()
