@@ -107,8 +107,8 @@ class Node:
                 if my_block.get_block_hash() == curr_block_hash:
                     num_of_unknown_blocks_to_sender = i
                     break
-            else: #TODO check what will be happen when the node's block chain is empty, will it call that else?
-                sender_block = sender.get_block(block_hash)
+            else:
+                sender_block = sender.get_block(curr_block_hash)
                 if not self.validate_block(sender, sender_block): #TODO need to check what if one of the new sender blocks is non-valid (and not the first one), should I ignore the whole new blocks or take all the valid block till the previus of the non valid block (what if we have non valid for the hash itself)
                     return None    
                 unkonwn_blocks_to_me.insert(0, sender_block)
@@ -143,8 +143,8 @@ class Node:
                     self.mempool.append(removed_tx)
                     break
         
-        if set(self.utxo) - set(sender.utxo) or set(sender.utxo) - set(self.utxo):
-            raise Exception("The utxo is not eq")
+        #if set(self.utxo) - set(sender.utxo) or set(sender.utxo) - set(self.utxo):
+        #    raise Exception("The utxo is not eq")
 
         for neighbor in self.connected_nodes:
              neighbor.notify_of_block(block_hash, self)
@@ -324,6 +324,12 @@ class Node:
         # num of transaction in block
         if len(block.get_transactions()) > BLOCK_SIZE:
             return False
+        try:
+            if block.get_prev_block_hash() != GENESIS_BLOCK_PREV:
+                prev_block = sender.get_block(block.get_prev_block_hash())
+        except:
+            # The prev block isn't genesis and not exists.
+            return False
         # any tx in tx of block
         num_of_mined_transctions = 0
         for tx in block.get_transactions():
@@ -342,9 +348,8 @@ class Node:
         
         if self.calc_block_hash(block.get_transactions(), block.get_prev_block_hash()) != block.get_block_hash():
             return False
-        # hashing
-        # double spent
-        # more or less of node's created transction (should be only 1)
+        
+        return True
         
 
 """
