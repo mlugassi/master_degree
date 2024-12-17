@@ -28,9 +28,9 @@ class Node:
         if other.get_address() == self.get_address():
             raise Exception("You are trying to connect to yourself")
         if other.get_address() not in [n.get_address() for n in self.connected_nodes]:
-            self.connected_nodes.update(other)
-        other.connect(self) # TODO: check if it is needed or it being done from outside
-        other.notify_of_block(self.get_latest_hash(), self)
+            self.connected_nodes.add(other)
+            other.connect(self) # TODO: check if it is needed or it being done from outside
+            self.notify_of_block(other.get_latest_hash(), other)
 
     def disconnect_from(self, other: 'Node') -> None:
         """Disconnects this node from the other node. If the two were not connected, then nothing happens"""
@@ -108,15 +108,24 @@ class Node:
                     num_of_unknown_blocks_to_sender = i
                     break
             else: #TODO check what will be happen when the node's block chain is empty, will it call that else?
-                sender_block = sender.get_block(block_hash)
-                if not self.validate_block(sender, sender_block): #TODO need to check what if one of the new sender blocks is non-valid (and not the first one), should I ignore the whole new blocks or take all the valid block till the previus of the non valid block (what if we have non valid for the hash itself)
-                    return None    
+                try:
+                    sender_block = sender.get_block(curr_block_hash)
+                except: # if we failed here it's mean that the curr_block_hash isn't point on real block
+                    return None
                 unkonwn_blocks_to_me.insert(0, sender_block)
+                # if not self.validate_block(sender, sender_block): #TODO need to check what if one of the new sender blocks is non-valid (and not the first one), should I ignore the whole new blocks or take all the valid block till the previus of the non valid block (what if we have non valid for the hash itself)
+                #     unkonwn_blocks_to_me.clear()
                 if sender_block.get_prev_block_hash() != GENESIS_BLOCK_PREV:
                     curr_block_hash = sender_block.get_prev_block_hash()
                 else:
                     num_of_unknown_blocks_to_sender = len(self.blockchain)
-        
+
+        forked_blockchain = self.blockchain[:-num_of_unknown_blocks_to_sender].copy()
+        for i, block in enumerate(unkonwn_blocks_to_me):
+            if not self.validate_block(block, forked_blockchain + unkonwn_blocks_to_me[:i + 1]):
+                unkonwn_blocks_to_me = unkonwn_blocks_to_me[:i]
+                break
+                
         if num_of_unknown_blocks_to_sender >= len(unkonwn_blocks_to_me): #TODO check what we should do, if on both chains we have new blocks but with the same length 
             return None            
 
@@ -143,8 +152,9 @@ class Node:
                     self.mempool.append(removed_tx)
                     break
         
-        if set(self.utxo) - set(sender.utxo) or set(sender.utxo) - set(self.utxo):
-            raise Exception("The utxo is not eq")
+        # TODO check the next lines
+        # if set(self.utxo) - set(sender.utxo) or set(sender.utxo) - set(self.utxo):
+        #   raise Exception("The utxo is not eq")
 
         for neighbor in self.connected_nodes:
              neighbor.notify_of_block(block_hash, self)
@@ -274,14 +284,6 @@ class Node:
     def is_block_valid(block: Block):
         pass
 
-    def find_transaction(self, txid: TxID) -> List[Transaction]:
-        found_transactions: List[Transaction] = list()
-        for block in self.blockchain:
-            tx = block.find_transaction(txid)
-            if tx:
-                found_transactions.append(tx)
-        return found_transactions
-
     def add_transaction_to_utxo(self, added_tx: Transaction) -> None:
         self.utxo.append(added_tx)
         
@@ -308,8 +310,11 @@ class Node:
             else:
                 raise Exception("Transaction must be in pending or unsent lists")            
         
-        input_tx = self.find_transaction(removed_tx.input)[0]
-        if len(self.find_transaction(removed_tx.input)) != 1: raise Exception("LUGASSI - found more than one inputs for a tx")
+        if removed_tx.input == None: # TODO: Should we remove the minded transction when we remove a block?
+            return None
+        
+        input_tx = find_transaction(self.blockchain, removed_tx.input)[0]
+        if len(find_transaction(self.blockchain, removed_tx.input)) != 1: raise Exception("LUGASSI - found more than one inputs for a tx")
         self.utxo.append(input_tx)
         if input_tx.output == self.get_address():
             self.unspent_transaction.append(input_tx)
@@ -320,7 +325,7 @@ class Node:
         )
         return sha256(transactions_data + prev_block_hash).digest()
         
-    def validate_block(self, sender: 'Node', block: Block) -> bool:
+    def validate_block(self, block: Block, blockchain: List[Block]) -> bool:
         # num of transaction in block
         if len(block.get_transactions()) > BLOCK_SIZE:
             return False
@@ -332,7 +337,7 @@ class Node:
             if tx.input is None:
                 num_of_mined_transctions += 1
             else:
-                input_tx = sender.find_transaction(tx.input)
+                input_tx = find_transaction(blockchain, tx.input)
                 if len(input_tx) != 1:
                     return False
                 if not verify((tx.input + tx.output), tx.signature, input_tx[0].output): # (i)
@@ -340,12 +345,19 @@ class Node:
         if num_of_mined_transctions != 1:
             return False
         
+        # TODO check loop infinity
         if self.calc_block_hash(block.get_transactions(), block.get_prev_block_hash()) != block.get_block_hash():
             return False
-        # hashing
-        # double spent
-        # more or less of node's created transction (should be only 1)
         
+        return True
+
+def find_transaction(blockchain: List[Block], txid: TxID) -> List[Transaction]:
+    found_transactions: List[Transaction] = list()
+    for block in blockchain:
+        tx = block.find_transaction(txid)
+        if tx:
+            found_transactions.append(tx)
+    return found_transactions
 
 """
 Importing this file should NOT execute code. It should only create definitions for the objects above.
