@@ -2,14 +2,37 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: pytest",
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: pytest EX1",
             "type": "python",
             "request": "launch",
             "module": "pytest",
             "justMyCode": true,
-            "args": ["--maxfail=1", "--disable-warnings"],
+            "args": [
+                "--maxfail=1",
+                "--disable-warnings"
+            ],
             "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/First Year/Introduction to Cryptocurrencies"
-        }
+            "cwd": "${workspaceFolder}/master_degree/First Year/Introduction to Cryptocurrencies/ex1_files"
+        },
+        {
+            "name": "Python: pytest EX2",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "justMyCode": true,
+            "args": [
+                "--maxfail=1",
+                "--disable-warnings"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/master_degree/First Year/Introduction to Cryptocurrencies/ex2_files"
+        }        
     ]
 }
