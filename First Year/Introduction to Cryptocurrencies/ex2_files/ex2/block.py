@@ -1,6 +1,6 @@
-from .utils import BlockHash
+from .utils import BlockHash, TxID
 from .transaction import Transaction
-from typing import List
+from typing import List, Optional
 from hashlib import sha256
 
 
@@ -34,4 +34,9 @@ class Block:
             (transaction.input if transaction.input is not None else b"") + b";" + transaction.output + b";" + transaction.signature for transaction in self.transactions
         )
         return sha256(transactions_data + self.get_prev_block_hash()).digest()
-
+    
+    def find_transaction(self, txid: TxID) -> Optional[Transaction]:
+        for tx in self.transactions:
+            if txid == tx.get_txid():
+                return tx
+        return None
