@@ -99,7 +99,7 @@ class Node:
         not conflict.
         """
         curr_block_hash = block_hash
-        unkonwn_blocks_to_me: List[Block] = list()
+        unkonwn_blocks_to_me: list = list()
         num_of_unknown_blocks_to_sender = None
 
         while num_of_unknown_blocks_to_sender is None:
@@ -112,17 +112,15 @@ class Node:
                     sender_block = sender.get_block(curr_block_hash)
                 except: # if we failed here it's mean that the curr_block_hash isn't point on real block
                     return None
-                unkonwn_blocks_to_me.insert(0, sender_block)
-                # if not self.validate_block(sender, sender_block): #TODO need to check what if one of the new sender blocks is non-valid (and not the first one), should I ignore the whole new blocks or take all the valid block till the previus of the non valid block (what if we have non valid for the hash itself)
-                #     unkonwn_blocks_to_me.clear()
+                unkonwn_blocks_to_me.insert(0, (sender_block, curr_block_hash))
                 if sender_block.get_prev_block_hash() != GENESIS_BLOCK_PREV:
                     curr_block_hash = sender_block.get_prev_block_hash()
                 else:
                     num_of_unknown_blocks_to_sender = len(self.blockchain)
 
-        forked_blockchain = self.blockchain[:-num_of_unknown_blocks_to_sender].copy()
-        for i, block in enumerate(unkonwn_blocks_to_me):
-            if not self.validate_block(block, forked_blockchain + unkonwn_blocks_to_me[:i + 1]):
+        forked_blockchain = self.blockchain[:len(self.blockchain) - num_of_unknown_blocks_to_sender].copy()
+        for i, (unknown_block, unkonwn_block_hash) in enumerate(unkonwn_blocks_to_me):
+            if not self.validate_block(unknown_block, unkonwn_block_hash, forked_blockchain + [b for b, _ in unkonwn_blocks_to_me[:i + 1]]):
                 unkonwn_blocks_to_me = unkonwn_blocks_to_me[:i]
                 break
                 
@@ -134,14 +132,13 @@ class Node:
             block = self.blockchain.pop()
             for removed_tx in block.get_transactions():
                 self.remove_transaction_from_utxo(removed_tx)
-                self.mempool.append(removed_tx)
                 for tx in self.mempool.copy():
                     if tx.input == removed_tx.get_txid():
                         removed_from_mempool.append(tx)
                         self.mempool.remove(tx)
                         break
 
-        for block in unkonwn_blocks_to_me:
+        for block, _ in unkonwn_blocks_to_me:
             self.blockchain.append(block)
             for tx in block.get_transactions():
                 self.add_transaction_to_utxo(tx)
@@ -177,16 +174,11 @@ class Node:
         for tx in self.get_mempool():
             if len(transactions) <= BLOCK_SIZE:
                 transactions.append(tx)
-
-        if len(self.get_mempool()) > BLOCK_SIZE-1:
-            self.mempool = self.mempool[BLOCK_SIZE-1:]
-        else:
-            self.mempool.clear()
         
         for tx in transactions:
             self.add_transaction_to_utxo(tx)
             
-        self.blockchain.append(Block(self.get_latest_hash(),transactions))
+        self.blockchain.append(Block(self.get_latest_hash(), transactions))
         for node in self.connected_nodes:
             node.notify_of_block(self.get_latest_hash(), self)
         
@@ -285,20 +277,19 @@ class Node:
         pass
 
     def add_transaction_to_utxo(self, added_tx: Transaction) -> None:
+        if added_tx.input is not None and added_tx in self.mempool:
+            self.mempool.remove(added_tx)
         self.utxo.append(added_tx)
-        
+
         if added_tx.output == self.get_address():
             self.unspent_transaction.append(added_tx)
-
-        for tx in self.unspent_transaction.copy():
-            if tx.get_txid() == added_tx.input:
-                self.unspent_transaction.remove(tx)
-                break
-        else:
-            for tx in self.pending_transaction.copy():
-                if tx.get_txid() == added_tx.input:
-                    self.pending_transaction.remove(tx)
-                    break
+        if added_tx.input is not None:
+            input_tx = find_transaction(self.blockchain, added_tx.input)[0]
+            self.utxo.remove(input_tx)
+            if input_tx in self.unspent_transaction:
+                self.unspent_transaction.remove(input_tx)
+            if input_tx in self.pending_transaction:
+                self.pending_transaction.remove(input_tx)                
 
     def remove_transaction_from_utxo(self, removed_tx: Transaction) -> None:
         self.utxo.remove(removed_tx)
@@ -312,9 +303,9 @@ class Node:
         
         if removed_tx.input == None: # TODO: Should we remove the minded transction when we remove a block?
             return None
-        
+        # self.mempool.append(removed_tx) TODO check if we need add removed transction to mempool after removing from the utxo (and block)
         input_tx = find_transaction(self.blockchain, removed_tx.input)[0]
-        if len(find_transaction(self.blockchain, removed_tx.input)) != 1: raise Exception("LUGASSI - found more than one inputs for a tx")
+        if len(find_transaction(self.blockchain, removed_tx.input)) != 1: raise Exception("LUGASSI - found more than one inputs for a tx") #TODO disable it when finsh to work
         self.utxo.append(input_tx)
         if input_tx.output == self.get_address():
             self.unspent_transaction.append(input_tx)
@@ -325,7 +316,7 @@ class Node:
         )
         return sha256(transactions_data + prev_block_hash).digest()
         
-    def validate_block(self, block: Block, blockchain: List[Block]) -> bool:
+    def validate_block(self, block: Block, block_hash: BlockHash, blockchain: List[Block]) -> bool:
         # num of transaction in block
         if len(block.get_transactions()) > BLOCK_SIZE:
             return False
@@ -346,7 +337,7 @@ class Node:
             return False
         
         # TODO check loop infinity
-        if self.calc_block_hash(block.get_transactions(), block.get_prev_block_hash()) != block.get_block_hash():
+        if self.calc_block_hash(block.get_transactions(), block.get_prev_block_hash()) != block_hash:
             return False
         
         return True

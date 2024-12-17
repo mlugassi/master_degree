@@ -19,7 +19,7 @@
                 "--disable-warnings"
             ],
             "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/master_degree/First Year/Introduction to Cryptocurrencies/ex1_files"
+            "cwd": "${workspaceFolder}/First Year/Introduction to Cryptocurrencies/ex1_files"
         },
         {
             "name": "Python: pytest EX2",
@@ -32,7 +32,7 @@
                 "--disable-warnings"
             ],
             "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/master_degree/First Year/Introduction to Cryptocurrencies/ex2_files"
+            "cwd": "${workspaceFolder}/First Year/Introduction to Cryptocurrencies/ex2_files"
         }        
     ]
 }
