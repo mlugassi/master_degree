@@ -1,5 +1,5 @@
-from ConnectFourTypes import *
-
+from connect_four_types import *
+from mcts_player import *
 
 class ConnectFour:
 
@@ -85,11 +85,6 @@ class ConnectFour:
             rows.append(" ".join(row))
         return "\n".join(rows)
 
-def humen_move():
-    pass
-
-def computer_move():
-    pass
 
 # Main function for debugging purposes: Allows two humans to play the game.
 def main():
@@ -98,6 +93,7 @@ def main():
     Allows two human players to play Connect Four in the terminal.
     """
     game = ConnectFour()
+    mcts_player = MCTSPlayer()
 
     print("Welcome to Connect Four!")
     print("Player 1 is RED (R) and Player 2 is YELLOW (Y).\n")
@@ -105,16 +101,19 @@ def main():
     while game.status == GameStatus.ONGOING:
         print(game)
         print("\nCurrent Player:", "RED" if game.player == Player.RED else "YELLOW")
-        try:
-            move = int(input("Enter a column (0-6): "))
-            if move not in game.legal_moves():
-                print("Illegal move. Try again.")
-                continue
-            game.make(move)
-        except ValueError:
-            print("Invalid input. Enter a number between 0 and 6.")
-        except IndexError:
-            print("Move out of bounds. Try again.")
+        if game.player == Player.RED:
+            move = mcts_player.choose_move(game, num_iterations=1000)
+        else:        
+            try:
+                move = int(input("Enter a column (0-6): "))
+                if move not in game.legal_moves():
+                    print("Illegal move. Try again.")
+                    continue
+            except ValueError:
+                print("Invalid input. Enter a number between 0 and 6.")
+            except IndexError:
+                print("Move out of bounds. Try again.")
+        game.make(move)
 
     print(game)
     if game.status == GameStatus.RED_WIN:
