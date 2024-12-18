@@ -77,9 +77,9 @@ class ConnectFour:
             row = []
             for c in range(7):
                 if self.board[c][r] == CellStatus.RED:
-                    row.append("R")
+                    row.append("\033[31mO\033[0m")
                 elif self.board[c][r] == CellStatus.YELLOW:
-                    row.append("Y")
+                    row.append("\033[33mO\033[0m")
                 else:
                     row.append(".")
             rows.append(" ".join(row))
@@ -93,7 +93,8 @@ def main():
     Allows two human players to play Connect Four in the terminal.
     """
     game = ConnectFour()
-    mcts_player = MCTSPlayer()
+    red_mcts_player = MCTSPlayer(Player.RED)
+    yellow_mcts_player = MCTSPlayer(Player.YELLOW)
 
     print("Welcome to Connect Four!")
     print("Player 1 is RED (R) and Player 2 is YELLOW (Y).\n")
@@ -101,9 +102,11 @@ def main():
     while game.status == GameStatus.ONGOING:
         print(game)
         print("\nCurrent Player:", "RED" if game.player == Player.RED else "YELLOW")
-        if game.player == Player.RED:
-            move = mcts_player.choose_move(game, num_iterations=1000)
-        else:        
+        if game.player == Player.YELLOW:
+            move = yellow_mcts_player.choose_move(game, num_iterations=1000)
+        # elif game.player == Player.RED:
+        #      move = red_mcts_player.choose_move(game, num_iterations=1000)            
+        else:
             try:
                 move = int(input("Enter a column (0-6): "))
                 if move not in game.legal_moves():

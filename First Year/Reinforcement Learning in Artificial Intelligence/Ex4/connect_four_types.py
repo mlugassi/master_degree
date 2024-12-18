@@ -14,7 +14,7 @@ class CellStatus:
 
 class GameStatus:
     # Game status constants
-    RED_WIN = 1
-    YELLOW_WIN = -1
+    RED_WIN = CellStatus.RED
+    YELLOW_WIN = CellStatus.YELLOW
     DRAW = 0
     ONGOING = -17  # Completely arbitrary
