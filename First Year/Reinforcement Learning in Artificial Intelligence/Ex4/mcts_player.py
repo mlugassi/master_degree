@@ -32,7 +32,7 @@ class MCTSPlayer:
             node.backpropagate(result)
 
         # Choose the move with the highest visit count
-        best_move = max(root.children.items(), key=lambda item: (item[1].win_count/item[1].visit_count + 0.01 * item[1].win_count))[0]
+        best_move = max(root.children.items(), key=lambda item: (item[1].win_count/item[1].visit_count))[0]
         return best_move
 
     def check_wining_move(self, player, game_state):

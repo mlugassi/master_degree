@@ -72,7 +72,7 @@ class ConnectFour:
         Returns a string representation of the board.
         Colored 'O' for RED/YELLOW, '.' for EMPTY.
         """
-        rows = ["      _____________"]
+        rows = ["      _______________"]
         for r in range(5, -1, -1):  # From top row to bottom
             row = []
             for c in range(7):
@@ -82,8 +82,8 @@ class ConnectFour:
                     row.append("\033[33m0\033[0m")
                 else:
                     row.append(".")
-            rows.append("     |" + " ".join(row) + "|")
-        rows.append("     " + " ".join(["|0","1","2","3","4","5","6|"]))
+            rows.append("     | " + " ".join(row) + " |")
+        rows.append("     " + " ".join(["| 0","1","2","3","4","5","6 |"]))
         return "\n".join(rows)
 
 
