@@ -16,7 +16,7 @@ class MCTSPlayer:
             game_state = game.clone()
 
             # Selection: Traverse the tree to find the best node to expand
-            while not node.untried_moves:
+            while not node.untried_moves and node.children:
                 node = node.best_child(self.exploration_weight)
                 game_state.make(node.move)
 
@@ -32,7 +32,7 @@ class MCTSPlayer:
             node.backpropagate(result)
 
         # Choose the move with the highest visit count
-        best_move = max(root.children.items(), key=lambda item: (item[1].win_count/item[1].visit_count))[0]
+        best_move = max(root.children.items(), key=lambda item: (item[1].win_count/item[1].visit_count + 0.01 * item[1].win_count))[0]
         return best_move
 
     def check_wining_move(self, player, game_state):

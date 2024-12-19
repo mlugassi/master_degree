@@ -95,27 +95,28 @@ def main():
     game = ConnectFour()
     red_mcts_player = MCTSPlayer(Player.RED)
     yellow_mcts_player = MCTSPlayer(Player.YELLOW)
-
+    play_against_me = True
     print("Welcome to Connect Four!")
     print("Player 1 is RED (R) and Player 2 is YELLOW (Y).\n")
 
     while game.status == GameStatus.ONGOING:
         print(game)
         print("\nCurrent Player:", "RED" if game.player == Player.RED else "YELLOW")
-        if game.player == Player.YELLOW:
-            move = yellow_mcts_player.choose_move(game, num_iterations=1000)
-        # elif game.player == Player.RED:
-        #      move = red_mcts_player.choose_move(game, num_iterations=1000)            
-        else:
-            try:
-                move = int(input("Enter a column (0-6): "))
-                if move not in game.legal_moves():
-                    print("Illegal move. Try again.")
-                    continue
-            except ValueError:
-                print("Invalid input. Enter a number between 0 and 6.")
-            except IndexError:
-                print("Move out of bounds. Try again.")
+        if game.player == Player.RED:
+            move = red_mcts_player.choose_move(game, num_iterations=2500)
+        elif game.player == Player.YELLOW:
+            if not play_against_me:
+                move = yellow_mcts_player.choose_move(game, num_iterations=2500)            
+            else:
+                try:
+                    move = int(input("Enter a column (0-6): "))
+                    if move not in game.legal_moves():
+                        print("Illegal move. Try again.")
+                        continue
+                except ValueError:
+                    print("Invalid input. Enter a number between 0 and 6.")
+                except IndexError:
+                    print("Move out of bounds. Try again.")
         game.make(move)
 
     print(game)
