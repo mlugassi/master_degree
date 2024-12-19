@@ -24,15 +24,19 @@ class Node:
         Raises an exception if asked to connect to itself.
         The connection itself does not trigger updates about the mempool,
         but nodes instantly notify of their latest block to each other (see notify_of_block)"""
+        if type(other) is not Node:
+            return None
         if other.get_address() == self.get_address():
             raise Exception("You are trying to connect to yourself")
         if other.get_address() not in [n.get_address() for n in self.connected_nodes]:
             self.connected_nodes.add(other)
-            other.connect(self) # TODO: check if it is needed or it being done from outside
-            self.notify_of_block(other.get_latest_hash(), other)
+            other.connect(self)
+            other.notify_of_block(self.get_latest_hash(), self)
 
     def disconnect_from(self, other: 'Node') -> None:
         """Disconnects this node from the other node. If the two were not connected, then nothing happens"""
+        if type(other) is not Node:
+            return None
         for n in self.connected_nodes:
             if n.get_address() == other.get_address():
                 self.connected_nodes.remove(n)
@@ -53,12 +57,8 @@ class Node:
 
         If the transaction is added successfully, then it is also sent to neighboring nodes.
         """
-        if transaction is None:
+        if transaction is None or transaction.input is None:
             return False    
-        
-        #TODO check if we need to add that check
-        # if transaction.input is None: # (iv)
-        #     return False
 
         input_transaction = self.find_transaction_in_utxo(transaction.input) # (ii)
         if input_transaction is None:
@@ -72,8 +72,9 @@ class Node:
                 return False
             
         self.mempool.append(transaction)
+        # Notify to the neighbores
         for neighbor in self.connected_nodes:
-            neighbor.add_transaction_to_mempool(transaction) #TODO do we need to check if the new transction was successfuly added the the neighbor's mempool
+            neighbor.add_transaction_to_mempool(transaction)
 
         return True
     
@@ -101,12 +102,9 @@ class Node:
         unkonwn_blocks_to_me: List[Block] = list()
         unkonwn_blocks_to_hashes: List[BlockHash] = list()
         num_of_unknown_blocks_to_sender = None
-
-        if block_hash != sender.get_latest_hash(): #TODO cechk if we need if the hash we got is ineed the latest hash
-            return None
-        
+       
         while num_of_unknown_blocks_to_sender is None:
-            if curr_block_hash in unkonwn_blocks_to_hashes: #Check if sender blockchain has infinity loop
+            if curr_block_hash in unkonwn_blocks_to_hashes: # Checking if sender blockchain has infinity loop
                 return None
             for i, my_block in enumerate(self.blockchain[::-1]):
                 if my_block.get_block_hash() == curr_block_hash:
@@ -130,16 +128,17 @@ class Node:
                 unkonwn_blocks_to_me = unkonwn_blocks_to_me[:i]
                 break
                 
-        if num_of_unknown_blocks_to_sender >= len(unkonwn_blocks_to_me): #TODO check what we should do, if on both chains we have new blocks but with the same length 
+        if num_of_unknown_blocks_to_sender >= len(unkonwn_blocks_to_me):
             return None            
 
+        # Removing my blocks that are't in the longest blockchain
         removed_from_mempool = list()
         for i in range(num_of_unknown_blocks_to_sender):
             block = self.blockchain.pop()
             for removed_tx in block.get_transactions():
                 self.remove_transaction_from_utxo(removed_tx)
-                #Check if in mempool there is a transaction that is basing on the removed transaction 
-                # (and save it in different list since it can be addes if the removed transaction 
+                # Check if in mempool there is a transaction that is basing on the removed transaction 
+                # (and save it in different list since it can be added if the removed transaction 
                 # will be added from the sender's new blocks)
                 for tx in self.mempool.copy():
                     if tx.input == removed_tx.get_txid():
@@ -158,12 +157,15 @@ class Node:
                     self.mempool.append(removed_tx)
                     break
         
-        # TODO check the next lines
-        # if set(self.utxo) - set(sender.utxo) or set(sender.utxo) - set(self.utxo):
-        #   raise Exception("The utxo is not eq")
+        for tx in self.mempool.copy():
+            for utxo_tx in self.get_utxo():
+                if tx.input == utxo_tx.get_txid():
+                    break
+            else:
+                self.mempool.remove(tx)
 
         for neighbor in self.connected_nodes:
-             neighbor.notify_of_block(block_hash, self)
+             neighbor.notify_of_block(unkonwn_blocks_to_me[-1].get_block_hash(), self)
 
     def mine_block(self) -> BlockHash:
         """"
@@ -173,25 +175,24 @@ class Node:
         money and adds it to the address of this miner.
         Money creation transactions have None as their input, and instead of a signature, contain 48 random bytes.
         If a new block is created, all connections of this node are notified by calling their notify_of_block() method.
-        TODO: to check when need to return None in this func
         The method returns the new block hash (or None if there was no block)
         """
         transactions: List[Transaction] = list()
 
-        transactions.append(Transaction(self.get_address(), None, token_bytes(48)))
+        transactions.append(Transaction(self.get_address(), None, token_bytes(64)))
         
         for tx in self.get_mempool():
-            if len(transactions) <= BLOCK_SIZE:
+            if len(transactions) < BLOCK_SIZE:
                 transactions.append(tx)
         
         for tx in transactions:
             self.add_transaction_to_utxo(tx)
-            
-        self.blockchain.append(Block(self.get_latest_hash(), transactions))
+        new_block = Block(self.get_latest_hash(), transactions)
+        self.blockchain.append(new_block)
         for node in self.connected_nodes:
-            node.notify_of_block(self.get_latest_hash(), self)
+            node.notify_of_block(new_block.get_block_hash(), self)
         
-        return self.get_latest_hash()
+        return new_block.get_block_hash()
 
     def get_block(self, block_hash: BlockHash) -> Block:
         """
@@ -238,7 +239,7 @@ class Node:
 
         The transaction is added to the mempool (and as a result is also published to neighboring nodes)
         """
-        if not self.unspent_transaction:
+        if not self.unspent_transaction or type(target) is not bytes:
             return None
         
         chosen_transction = self.unspent_transaction.pop()
@@ -282,22 +283,19 @@ class Node:
                 return tx
         return None
 
-    def is_block_valid(block: Block):
-        pass
-
     def add_transaction_to_utxo(self, added_tx: Transaction) -> None:
         if added_tx.input is not None and added_tx in self.mempool:
             self.mempool.remove(added_tx)
         self.utxo.append(added_tx)
-
         if added_tx.output == self.get_address():
             self.unspent_transaction.append(added_tx)
+        
         if added_tx.input is not None:
             input_tx = find_transaction(self.blockchain, added_tx.input)[0]
             self.utxo.remove(input_tx)
             if input_tx in self.unspent_transaction:
                 self.unspent_transaction.remove(input_tx)
-            if input_tx in self.pending_transaction:
+            elif input_tx in self.pending_transaction:
                 self.pending_transaction.remove(input_tx)                
     
     def remove_transaction_from_utxo(self, removed_tx: Transaction) -> None:
@@ -310,7 +308,7 @@ class Node:
             else:
                 raise Exception("Transaction must be in pending or unsent lists")            
         
-        if removed_tx.input == None: # TODO: Should we remove the minded transction when we remove a block?
+        if removed_tx.input == None:
             return None
         # self.mempool.append(removed_tx) TODO check if we need add removed transction to mempool after removing from the utxo (and block)
         input_tx = find_transaction(self.blockchain, removed_tx.input)[0]
@@ -331,7 +329,7 @@ class Node:
         # any tx in tx of block
         num_of_mined_transctions = 0
         for tx in block.get_transactions():
-            if not tx:
+            if not tx or tx.output is None:
                 return False
             if tx.input is None:
                 num_of_mined_transctions += 1
@@ -339,12 +337,14 @@ class Node:
                 input_tx = find_transaction(blockchain, tx.input)
                 if len(input_tx) != 1:
                     return False
-                if not verify((tx.input + tx.output), tx.signature, input_tx[0].output): # (i)
+                if not verify((tx.input + tx.output), tx.signature, input_tx[0].output):
                     return False
         if num_of_mined_transctions != 1:
             return False
+        all_inputs = [tx.input for block in blockchain for tx in block.get_transactions() if tx.input != None]
+        if len(all_inputs) > len(set(all_inputs)):
+            return False
         
-        # TODO check loop infinity
         if self.calc_block_hash(block.get_transactions(), block.get_prev_block_hash()) != block_hash:
             return False
         

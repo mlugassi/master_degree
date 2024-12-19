@@ -1,0 +1,11 @@
+Authers:
+    Name:   Michael Lugassi
+    ID:     305536575
+
+    Name:   Refael Zanzuri
+    ID:     305233819
+
+Description:
+    Submission of the second homework assignment in the course,
+    Where we implemented a system that simulates the world of Bitcoin and blockchain in a simplified manner.
+    We implemented a Nodes that were connected and not, and blockchain rules between them.

@@ -448,4 +448,54 @@ def test_append_cut_blockchain(alice: Node, bob: Node, evil_node_maker: EvilNode
     block_chain = [block1, block2]
     eve = evil_node_maker(block_chain)    
     alice.notify_of_block(block1.get_block_hash(), eve)
-    assert alice.get_latest_hash() == alice_block_hash
+    assert alice.get_latest_hash() == block1.get_block_hash()
+
+def test_output_is_none(alice: Node, bob: Node, evil_node_maker: EvilNodeMaker) -> None:
+    alice.mine_block()
+    tx0 = alice.create_transaction(None)
+    alice.add_transaction_to_mempool(tx0)
+    alice.mine_block()
+
+    tx1 = Transaction(bob.get_address(), alice.unspent_transaction[0].get_txid(), b"sig")
+    tx2 = Transaction(bob.get_address(), alice.unspent_transaction[1].get_txid(), b"sig")
+    assert alice.add_transaction_to_mempool(tx1) == False
+    alice.add_transaction_to_mempool(tx2)
+    assert alice.mine_block() is not None
+    alice.connect(None)
+    alice.disconnect_from(None)
+
+
+def test_double_spend_tx(alice: Node, bob: Node, evil_node_maker: EvilNodeMaker) -> None:
+    alice.mine_block()
+    mined_tx = Transaction(alice.get_address(), None, Signature(secrets.token_bytes(64)))
+
+    tx = alice.create_transaction(bob.get_address())
+    block1 = Block(alice.get_latest_hash(),[mined_tx, tx ,tx])
+    block2 = Block(block1.get_block_hash(),[mined_tx, tx])
+    eve= evil_node_maker([block1, block2])
+    alice.notify_of_block(block2.get_block_hash(), eve)
+    assert alice.get_latest_hash() != block2.get_block_hash()
+
+def test_overflow_size(alice: Node, bob: Node, evil_node_maker: EvilNodeMaker) -> None:
+    for _ in range(12):
+        alice.mine_block()
+    txs = []
+    for _ in range(12):
+        txs.append(alice.create_transaction(bob.get_address()))
+
+    mined_tx = Transaction(alice.get_address(), None, Signature(secrets.token_bytes(64)))
+    block1 = Block(alice.get_latest_hash(),[mined_tx] + txs)
+    eve = evil_node_maker([block1])
+    alice.notify_of_block(block1.get_block_hash(), eve)
+    assert alice.get_latest_hash() != block1.get_block_hash()
+
+    alice.mine_block()
+    assert len(alice.get_mempool()) == 3
+    assert len(alice.get_block(alice.get_latest_hash()).get_transactions()) == BLOCK_SIZE
+    assert alice.get_balance() == 4
+    alice.clear_mempool()
+    assert len(alice.get_mempool()) == 0
+    assert alice.get_balance() == 4
+
+
+    
