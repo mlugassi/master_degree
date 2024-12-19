@@ -72,17 +72,18 @@ class ConnectFour:
         Returns a string representation of the board.
         'R' for RED, 'Y' for YELLOW, '.' for EMPTY.
         """
-        rows = []
+        rows = ["      _____________"]
         for r in range(5, -1, -1):  # From top row to bottom
             row = []
             for c in range(7):
                 if self.board[c][r] == CellStatus.RED:
-                    row.append("\033[31mO\033[0m")
+                    row.append("\033[31m0\033[0m")
                 elif self.board[c][r] == CellStatus.YELLOW:
-                    row.append("\033[33mO\033[0m")
+                    row.append("\033[33m0\033[0m")
                 else:
                     row.append(".")
-            rows.append(" ".join(row))
+            rows.append("     |" + " ".join(row) + "|")
+        rows.append("     " + " ".join(["|0","1","2","3","4","5","6|"]))
         return "\n".join(rows)
 
 
@@ -101,7 +102,7 @@ def main():
 
     while game.status == GameStatus.ONGOING:
         print(game)
-        print("\nCurrent Player:", "RED" if game.player == Player.RED else "YELLOW")
+        print("\nCurrent Player:", "\033[31mRED\033[0m" if game.player == Player.RED else "\033[33mYELLOW\033[0m")
         if game.player == Player.RED:
             move = red_mcts_player.choose_move(game, num_iterations=2500)
         elif game.player == Player.YELLOW:
@@ -121,9 +122,10 @@ def main():
 
     print(game)
     if game.status == GameStatus.RED_WIN:
-        print("\nRED (Player 1) wins!")
+        print("\033[31mRED (Player 1) wins!\033[0m")
+        print("\n")
     elif game.status == GameStatus.YELLOW_WIN:
-        print("\nYELLOW (Player 2) wins!")
+        print("\033[33mYELLOW (Player 2) wins!\033[0m")
     else:
         print("\nIt's a draw!")
 
