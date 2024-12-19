@@ -70,7 +70,7 @@ class ConnectFour:
     def __str__(self):
         """
         Returns a string representation of the board.
-        'R' for RED, 'Y' for YELLOW, '.' for EMPTY.
+        Colored 'O' for RED/YELLOW, '.' for EMPTY.
         """
         rows = ["      _____________"]
         for r in range(5, -1, -1):  # From top row to bottom
