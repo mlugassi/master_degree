@@ -98,7 +98,6 @@ def main():
     yellow_mcts_player = MCTSPlayer(Player.YELLOW)
     play_against_me = True
     print("Welcome to Connect Four!")
-    print("Player 1 is RED (R) and Player 2 is YELLOW (Y).\n")
 
     while game.status == GameStatus.ONGOING:
         print(game)
@@ -122,10 +121,10 @@ def main():
 
     print(game)
     if game.status == GameStatus.RED_WIN:
-        print("\033[31mRED (Player 1) wins!\033[0m")
+        print("\n\n\033[31m****   RED Player Won!  ****\033[0m\n\n")
         print("\n")
     elif game.status == GameStatus.YELLOW_WIN:
-        print("\033[33mYELLOW (Player 2) wins!\033[0m")
+        print("\n\n\033[33m****   YELLOW Player Won!  ****\033[0m\n\n")
     else:
         print("\nIt's a draw!")
 
