@@ -17,7 +17,6 @@ class Node:
         self.unspent_transaction: List[Transaction] = list()
         self.pending_transaction: List[Transaction] = list()
         self.connected_nodes: Set['Node'] = set()
-        # self.last_updated_blockhash: BlockHash = GENESIS_BLOCK_PREV
 
     def connect(self, other: 'Node') -> None:
         """connects this node to another node for block and transaction updates.
@@ -99,28 +98,35 @@ class Node:
         not conflict.
         """
         curr_block_hash = block_hash
-        unkonwn_blocks_to_me: list = list()
+        unkonwn_blocks_to_me: List[Block] = list()
+        unkonwn_blocks_to_hashes: List[BlockHash] = list()
         num_of_unknown_blocks_to_sender = None
 
+        if block_hash != sender.get_latest_hash(): #TODO cechk if we need if the hash we got is ineed the latest hash
+            return None
+        
         while num_of_unknown_blocks_to_sender is None:
+            if curr_block_hash in unkonwn_blocks_to_hashes: #Check if sender blockchain has infinity loop
+                return None
             for i, my_block in enumerate(self.blockchain[::-1]):
                 if my_block.get_block_hash() == curr_block_hash:
                     num_of_unknown_blocks_to_sender = i
                     break
-            else: #TODO check what will be happen when the node's block chain is empty, will it call that else?
+            else:
                 try:
                     sender_block = sender.get_block(curr_block_hash)
                 except: # if we failed here it's mean that the curr_block_hash isn't point on real block
                     return None
-                unkonwn_blocks_to_me.insert(0, (sender_block, curr_block_hash))
+                unkonwn_blocks_to_me.insert(0, sender_block)
+                unkonwn_blocks_to_hashes.insert(0, curr_block_hash)
                 if sender_block.get_prev_block_hash() != GENESIS_BLOCK_PREV:
                     curr_block_hash = sender_block.get_prev_block_hash()
                 else:
                     num_of_unknown_blocks_to_sender = len(self.blockchain)
 
         forked_blockchain = self.blockchain[:len(self.blockchain) - num_of_unknown_blocks_to_sender].copy()
-        for i, (unknown_block, unkonwn_block_hash) in enumerate(unkonwn_blocks_to_me):
-            if not self.validate_block(unknown_block, unkonwn_block_hash, forked_blockchain + [b for b, _ in unkonwn_blocks_to_me[:i + 1]]):
+        for i, (unknown_block, unkonwn_block_hash) in enumerate(zip(unkonwn_blocks_to_me, unkonwn_blocks_to_hashes)):
+            if not self.validate_block(unknown_block, unkonwn_block_hash, forked_blockchain + unkonwn_blocks_to_me[:i + 1]):
                 unkonwn_blocks_to_me = unkonwn_blocks_to_me[:i]
                 break
                 
@@ -132,13 +138,16 @@ class Node:
             block = self.blockchain.pop()
             for removed_tx in block.get_transactions():
                 self.remove_transaction_from_utxo(removed_tx)
+                #Check if in mempool there is a transaction that is basing on the removed transaction 
+                # (and save it in different list since it can be addes if the removed transaction 
+                # will be added from the sender's new blocks)
                 for tx in self.mempool.copy():
                     if tx.input == removed_tx.get_txid():
                         removed_from_mempool.append(tx)
                         self.mempool.remove(tx)
                         break
 
-        for block, _ in unkonwn_blocks_to_me:
+        for block in unkonwn_blocks_to_me:
             self.blockchain.append(block)
             for tx in block.get_transactions():
                 self.add_transaction_to_utxo(tx)
@@ -290,7 +299,7 @@ class Node:
                 self.unspent_transaction.remove(input_tx)
             if input_tx in self.pending_transaction:
                 self.pending_transaction.remove(input_tx)                
-
+    
     def remove_transaction_from_utxo(self, removed_tx: Transaction) -> None:
         self.utxo.remove(removed_tx)
         if removed_tx.output == self.get_address():
@@ -305,7 +314,6 @@ class Node:
             return None
         # self.mempool.append(removed_tx) TODO check if we need add removed transction to mempool after removing from the utxo (and block)
         input_tx = find_transaction(self.blockchain, removed_tx.input)[0]
-        if len(find_transaction(self.blockchain, removed_tx.input)) != 1: raise Exception("LUGASSI - found more than one inputs for a tx") #TODO disable it when finsh to work
         self.utxo.append(input_tx)
         if input_tx.output == self.get_address():
             self.unspent_transaction.append(input_tx)

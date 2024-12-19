@@ -1,0 +1,7 @@
+{
+    "python.testing.pytestArgs": [
+        "First Year"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
+}

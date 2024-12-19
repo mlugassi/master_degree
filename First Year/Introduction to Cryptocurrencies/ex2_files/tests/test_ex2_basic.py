@@ -428,3 +428,24 @@ def test_blockchain_loop_detection(alice: Node, bob: Node, evil_node_maker: Evil
     # ודא שהמערכת לא מקבלת את הבלוק
     assert alice.get_latest_hash() == block2.get_block_hash()
     assert len(alice.get_utxo()) == 2
+
+def test_append_two_different_blockchain(alice: Node, bob: Node, evil_node_maker: EvilNodeMaker) -> None:
+    tx1 = Transaction(alice.get_address(), None, Signature(secrets.token_bytes(64)))
+    tx2 = Transaction(alice.get_address(), None, Signature(secrets.token_bytes(64)))
+    block1 = Block(hashlib.sha256(b"Invalid Genesis Hash").digest(), [tx1])
+    block2 = Block(block1.get_block_hash(), [tx2])
+    block_chain = [block1, block2]
+    eve = evil_node_maker(block_chain)    
+    alice.notify_of_block(block2.get_block_hash(), eve)
+    assert alice.get_latest_hash() == GENESIS_BLOCK_PREV
+
+def test_append_cut_blockchain(alice: Node, bob: Node, evil_node_maker: EvilNodeMaker) -> None:
+    alice_block_hash = alice.mine_block()
+    tx1 = Transaction(alice.get_address(), None, Signature(secrets.token_bytes(64)))
+    tx2 = Transaction(alice.get_address(), None, Signature(secrets.token_bytes(64)))
+    block1 = Block(alice.get_latest_hash(), [tx1])
+    block2 = Block(block1.get_block_hash(), [tx2])
+    block_chain = [block1, block2]
+    eve = evil_node_maker(block_chain)    
+    alice.notify_of_block(block1.get_block_hash(), eve)
+    assert alice.get_latest_hash() == alice_block_hash
