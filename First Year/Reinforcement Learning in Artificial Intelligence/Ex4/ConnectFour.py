@@ -70,7 +70,7 @@ class ConnectFour:
     def __str__(self):
         """
         Returns a string representation of the board.
-        'R' for RED, 'Y' for YELLOW, '.' for EMPTY.
+        Colored 'O' for RED/YELLOW, '.' for EMPTY.
         """
         rows = ["      _______________"]
         for r in range(5, -1, -1):  # From top row to bottom
@@ -96,35 +96,35 @@ def main():
     game = ConnectFour()
     red_mcts_player = MCTSPlayer(Player.RED)
     yellow_mcts_player = MCTSPlayer(Player.YELLOW)
-
+    play_against_me = True
     print("Welcome to Connect Four!")
-    print("Player 1 is RED (R) and Player 2 is YELLOW (Y).\n")
 
     while game.status == GameStatus.ONGOING:
         print(game)
         print("\nCurrent Player:", "\033[31mRED\033[0m" if game.player == Player.RED else "\033[33mYELLOW\033[0m")
-        if game.player == Player.YELLOW:
-            move = yellow_mcts_player.choose_move(game, num_iterations=1000)
-        # elif game.player == Player.RED:
-        #      move = red_mcts_player.choose_move(game, num_iterations=1000)            
-        else:
-            try:
-                move = int(input("Enter a column (0-6): "))
-                if move not in game.legal_moves():
-                    print("Illegal move. Try again.")
-                    continue
-            except ValueError:
-                print("Invalid input. Enter a number between 0 and 6.")
-            except IndexError:
-                print("Move out of bounds. Try again.")
+        if game.player == Player.RED:
+            move = red_mcts_player.choose_move(game, num_iterations=2500)
+        elif game.player == Player.YELLOW:
+            if not play_against_me:
+                move = yellow_mcts_player.choose_move(game, num_iterations=2500)            
+            else:
+                try:
+                    move = int(input("Enter a column (0-6): "))
+                    if move not in game.legal_moves():
+                        print("Illegal move. Try again.")
+                        continue
+                except ValueError:
+                    print("Invalid input. Enter a number between 0 and 6.")
+                except IndexError:
+                    print("Move out of bounds. Try again.")
         game.make(move)
 
     print(game)
     if game.status == GameStatus.RED_WIN:
-        print("\033[31mRED (Player 1) wins!\033[0m")
+        print("\n\n\033[31m****   RED Player Won!  ****\033[0m\n\n")
         print("\n")
     elif game.status == GameStatus.YELLOW_WIN:
-        print("\033[33mYELLOW (Player 2) wins!\033[0m")
+        print("\n\n\033[33m****   YELLOW Player Won!  ****\033[0m\n\n")
     else:
         print("\nIt's a draw!")
 
