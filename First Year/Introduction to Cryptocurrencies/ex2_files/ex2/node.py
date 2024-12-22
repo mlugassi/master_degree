@@ -344,6 +344,9 @@ class Node:
         all_inputs = [tx.input for block in blockchain for tx in block.get_transactions() if tx.input != None]
         if len(all_inputs) > len(set(all_inputs)):
             return False
+        all_sigs = [tx.signature for block in blockchain for tx in block.get_transactions()]
+        if len(all_sigs) > len(set(all_sigs)):
+            return False
         
         if self.calc_block_hash(block.get_transactions(), block.get_prev_block_hash()) != block_hash:
             return False

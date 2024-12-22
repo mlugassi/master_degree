@@ -497,5 +497,134 @@ def test_overflow_size(alice: Node, bob: Node, evil_node_maker: EvilNodeMaker) -
     assert len(alice.get_mempool()) == 0
     assert alice.get_balance() == 4
 
+def test_double_mined(alice: Node, bob: Node, evil_node_maker: EvilNodeMaker) -> None:
+    # Bob creates a longer chain with an invalid block
+    tx = Transaction(bob.get_address(), None, Signature(secrets.token_bytes(64)))
+    block1 = Block(GENESIS_BLOCK_PREV, [tx])
+    block2 = Block(block1.get_block_hash(), [tx])  # Duplicate transaction
+    block_chain = [block1, block2]
+    eve = evil_node_maker(block_chain)
 
-    
+    alice.notify_of_block(block2.get_block_hash(), eve)
+    assert alice.get_latest_hash() != block2.get_block_hash()
+    assert alice.get_latest_hash() == block1.get_block_hash()
+    # assert alice.get_utxo()
+
+def test_identical_transaction_in_mempool(alice: Node, bob: Node, evil_node_maker: EvilNodeMaker) -> None:
+    alice.mine_block()
+    alice.connect(bob)
+    tx1 = alice.create_transaction(bob.get_address())
+    assert tx1 is not None
+    assert len(alice.get_mempool()) == 1
+    assert len(bob.get_mempool()) == 1
+    alice.disconnect_from(bob)
+    alice.connect(bob)
+    assert len(bob.get_mempool()) == 1
+
+
+def test_longest_valid_chain(alice: Node, bob: Node) -> None:
+    alice.connect(bob)
+    alice.mine_block()
+    alice.disconnect_from(bob)
+    bob.mine_block()
+    Bh2 = bob.mine_block()
+    assert bob.get_latest_hash() == Bh2
+    assert bob.get_balance() == 2
+
+    Ah1 = alice.mine_block()
+    assert alice.get_latest_hash() == Ah1
+
+    tx1 = alice.create_transaction(bob.get_address())
+    tx2 = alice.create_transaction(bob.get_address())
+
+    assert alice.get_mempool() == [tx1, tx2]
+    Ah2 = alice.mine_block()
+    assert alice.get_mempool() == []
+    assert alice.get_balance() == 1
+
+    block2 = alice.get_block(Ah2)
+    bogus_hash = BlockHash(hashlib.sha256(b"no_such_block").digest())
+    block2.block_hash = bogus_hash
+    # alice.latest_block_hash = bogus_hash
+    # alice.blockchain[-1] = bogus_hash
+    alice.blockchain[-1].block_hash = bogus_hash
+    # alice.blocks.pop(Ah2)
+    # alice.blocks[bogus_hash] = block2
+
+    assert len(alice.blockchain) == 3
+    # assert alice.get_latest_hash() != Ah2
+    assert alice.get_latest_hash() == Ah2
+
+    alice.mine_block()
+    alice.mine_block()
+
+    alice.connect(bob)
+
+    # assert bob.get_latest_hash() == Bh2
+    assert bob.get_latest_hash() != Bh2
+
+
+def test_only_valid_blocks_update(alice: Node, bob: Node) -> None:
+    alice.mine_block()
+    alice.mine_block()
+    alice.mine_block()
+    bob.mine_block()
+    Bh2 = bob.mine_block()
+    assert bob.get_latest_hash() == Bh2
+    assert bob.get_balance() == 2
+
+    Ah1 = alice.mine_block()
+    assert alice.get_latest_hash() == Ah1
+
+    Ah2 = alice.mine_block()
+    block2 = alice.get_block(Ah2)
+    bogus_hash = BlockHash(hashlib.sha256(b"no_such_block").digest())
+    block2.block_hash = bogus_hash
+    # alice.latest_block_hash = bogus_hash
+    # alice.blockchain[-1] = bogus_hash
+    alice.blockchain[-1].block_hash = bogus_hash
+    # alice.blocks.pop(Ah2)
+    # alice.blocks[bogus_hash] = block2
+
+    assert len(alice.blockchain) == 5
+    # assert alice.get_latest_hash() != Ah2
+    assert alice.get_latest_hash() == Ah2
+
+    alice.mine_block()
+    Ah7 = alice.mine_block()
+    assert alice.get_latest_hash() == Ah7
+
+    alice.connect(bob)
+
+    assert bob.get_balance() == 0
+    # assert bob.get_latest_hash() == Ah1
+    assert bob.get_latest_hash() == Ah7
+
+
+def test_canceled_transaction_returns_in_mempool(alice: Node, bob: Node) -> None:
+    alice.mine_block()
+    tx1 = alice.create_transaction(bob.get_address())
+    Ah1 = alice.mine_block()
+    assert tx1 in alice.get_block(Ah1).get_transactions()
+    assert alice.get_balance() == 1
+
+    bob.mine_block()
+    bob.mine_block()
+    bob.mine_block()
+    bob.connect(alice)
+    assert alice.get_balance() == 0
+    assert len(alice.get_mempool()) == 0
+
+    alice.mine_block()
+    alice.disconnect_from(bob)
+    tx2 = alice.create_transaction(bob.get_address())
+    Ah2 = alice.mine_block()
+    assert tx2 in alice.get_block(Ah2).get_transactions()
+
+    bob.mine_block()
+    bob.mine_block()
+    bob.connect(alice)
+
+    assert tx2 in alice.get_mempool()
+    alice.mine_block()
+    assert alice.get_balance() == 1
