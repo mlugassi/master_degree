@@ -521,6 +521,31 @@ def test_identical_transaction_in_mempool(alice: Node, bob: Node, evil_node_make
     alice.connect(bob)
     assert len(bob.get_mempool()) == 1
 
+def test_double_spending2(alice: Node, bob: Node, evil_node_maker: EvilNodeMaker) -> None:
+    alice.mine_block()
+    alice.connect(bob)
+    tx1 = alice.create_transaction(bob.get_address())
+    alice.disconnect_from(bob)
+    alice.clear_mempool()
+    tx2 = alice.create_transaction(alice.get_address())
+    alice.mine_block()
+    # bob.mine_block()
+    bob.connect(alice)
+    alice.get_mempool() == 0
+    bob.get_mempool() == 0
+
+def test_double_spending3(alice: Node, bob: Node, evil_node_maker: EvilNodeMaker) -> None:
+    alice.mine_block()
+    alice.connect(bob)
+    tx1 = alice.create_transaction(bob.get_address())
+    alice.disconnect_from(bob)
+    alice.clear_mempool()
+    tx2 = alice.create_transaction(alice.get_address())
+    # bob.mine_block()
+    bob.connect(alice)
+    alice.mine_block()
+    alice.get_mempool() == 0
+    bob.get_mempool() == 0
 
 def test_longest_valid_chain(alice: Node, bob: Node) -> None:
     alice.connect(bob)

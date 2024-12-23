@@ -310,7 +310,7 @@ class Node:
         
         if removed_tx.input == None:
             return None
-        # self.mempool.append(removed_tx) TODO check if we need add removed transction to mempool after removing from the utxo (and block)
+        self.mempool.append(removed_tx) # TODO check if we need add removed transction to mempool after removing from the utxo (and block)
         input_tx = find_transaction(self.blockchain, removed_tx.input)[0]
         self.utxo.append(input_tx)
         if input_tx.output == self.get_address():
