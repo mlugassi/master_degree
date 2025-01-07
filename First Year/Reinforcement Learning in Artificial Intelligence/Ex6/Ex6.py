@@ -34,39 +34,33 @@ def question_a(num_of_train_episodes, num_of_test_episodes, epsilon, gamma):
 
 def question_b(num_of_train_episodes, num_of_test_episodes, epsilon, gamma):
     # Intial Q_table
-    Q_table = []
-    vector_reward = np.array(range(MAX_SUM))
+    vector_reward = np.array(range(MAX_SUM + 1))
     random.shuffle(vector_reward)
-    for i in range(MAX_SUM+1):
-        Q_table.append({"q": random.randint(0,MAX_SUM), "n":0})
 
-    x_train = np.zeros(MAX_SUM*2,num_of_test_episodes, dtype=int)
+    x_train = np.zeros((1,MAX_SUM*2 + 2), dtype=int)
+    y_train = np.zeros((1,1), dtype=int)
 
-    # train
-    for i in range(num_of_train_episodes):
-        episode, state = generate_episode(Q_table, epsilon)
-        x_train[:MAX_SUM,i] = vector_reward
-
-        #episode = np.zeros(dtype=int)
-        for i in episode:
-            # episode[i] = 1
-            x_train[i+MAX_SUM] = 1
-        
-        model = Sequential()
-        model.add(Input(shape=(x_train.shape[1],)))
-        model.add(Dense(44, activation='relu'))
-
-        model.add(Dense(16, activation='relu'))
-        model.add(Dense(4, activation='relu'))
-        model.add(Dense(2, activation='softmax'))
-
-        
-        # update_Q_table(Q_table, episode, reward, gamma)
+    model = Sequential()
+    model.add(Input(shape=(x_train.shape[1],)))
+    # model.add(Dense(32, activation='relu'))
+    # model.add(Dense(16, activation='relu'))
+    model.add(Dense(4, activation='relu'))
+    model.add(Dense(1, activation='linear'))
+    model.compile(optimizer='adam', loss='mean_squared_error', metrics=['accuracy'])
     
+    for i in range(num_of_train_episodes):
+        print("Running episode:", i)
+        episode, reward = model_episode(model, vector_reward)
+        x_train[0, :MAX_SUM + 1] = vector_reward
+        x_train[0, MAX_SUM + 1:] = episode
+        y_train[0, 0] = reward      
+        model.fit(x_train, y_train, epochs=1)
+        
+            
     # test
     result = 0
     for _ in range(num_of_test_episodes):
-        result += test(Q_table)
+        result += test_model(model, vector_reward)
     print("The test result is:", result/num_of_test_episodes)
     return result/num_of_test_episodes
 
@@ -89,6 +83,21 @@ def generate_episode(Q_table, epsilon):
 
     return hit_states, 0
 
+def state_to_OneHotVec(state):
+    state_vec = np.zeros(MAX_SUM + 1, dtype=int)
+    state_vec[state] = 1
+    return state_vec
+
+def model_episode(model, vector_reward):
+    state = 0
+    hit_state = state
+    while state <= MAX_SUM:
+        hit_state = state
+        if vector_reward[hit_state] > model.predict(np.concatenate((vector_reward, state_to_OneHotVec(hit_state)), dtype=int).reshape(1, MAX_SUM * 2 + 2)):
+            return state_to_OneHotVec(hit_state), vector_reward[state]
+        state += random.randint(1, 10)
+    return state_to_OneHotVec(hit_state), 0
+
 def update_Q_table(Q_table, episode, reward, gamma):
     sum_reward = 0
     reward_to_update = -1
@@ -109,11 +118,20 @@ def test(Q_table):
         state += random.randint(1, 10)
     return 0
 
+def test_model(model, vector_reward):
+    state = 0
+    while state <= MAX_SUM:
+        if vector_reward[state] > model.predict(np.concatenate((vector_reward, state_to_OneHotVec(state)), dtype=int).reshape(1, MAX_SUM * 2 + 2)):
+            return vector_reward[state]
+       
+        state += random.randint(1, 10)
+    return 0
+
 if __name__ == "__main__":
     # Init parameters
-    num_of_train_episodes = 100
+    num_of_train_episodes = 200
     num_of_test_episodes = 100
-    iteration = 100
+    iteration = 1
     epsilon = 0.1
     gamma = 0.9
     res = 0
