@@ -18,4 +18,9 @@ contract Wallet {
         require(success);
         userBalances[msg.sender] = 0;
     }
+    
+    // This function allows you to fetch the balance of a user.
+    function getBalance(address user) external view returns (uint) {
+        return userBalances[user];
+    } 
 }

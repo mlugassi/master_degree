@@ -33,7 +33,8 @@ w3 = Web3(Web3.HTTPProvider("http://127.0.0.1:8545"))
 # deploy the contract
 # Greeter = w3.eth.contract(abi=abi, bytecode=bytecode)
 
-bytecode, abi = compile("./VulnerableWallet.sol")
+bytecode, abi = compile("./Wallet2.sol")
+# bytecode, abi = compile("./VulnerableWallet.sol")
 assert bytecode, "Bytecode is empty0"
 
 Vul = w3.eth.contract(abi=abi, bytecode=bytecode)
@@ -56,11 +57,21 @@ attacker = w3.eth.contract(address=tx_receipt1["contractAddress"], abi=Aabi)
 for _ in range(5):
     _ = vul.functions.deposit().transact( {'from': w3.eth.accounts[2], 'value': w3.to_wei(1, 'ether')})
 print("the wallet 2 balance before is:", float(w3.eth.get_balance(w3.eth.accounts[2])/(10**18)))
+for i in range(10):
+    print(f"userBalances {i}:", float(vul.functions.getBalance(w3.eth.accounts[i]).call({'from': w3.eth.accounts[i]})/(10**18)))
+print(f"attacker {i}:", float(vul.functions.getBalance(attacker.address).call({'from': attacker.address})/(10**18)))
 
 print("the wallet 1 balance before is:", float(w3.eth.get_balance(w3.eth.accounts[1])/(10**18)))
+
 tx_hash2 = attacker.functions.exploit(vul.address).transact( {'from': w3.eth.accounts[1], 'value': w3.to_wei(1, 'ether')})
+# tx_hash2 = attacker.functions.exploit(vul.address).transact( {'from': w3.eth.accounts[1], 'value': w3.to_wei(1, 'ether')})
 print("the wallet 1 balance after is:", float(w3.eth.get_balance(w3.eth.accounts[1])/(10**18)))
 print("the wallet 2 balance after is:", float(w3.eth.get_balance(w3.eth.accounts[2])/(10**18)))
+for i in range(10):
+    print(f"userBalances {i}:", float(vul.functions.getBalance(w3.eth.accounts[i]).call({'from': w3.eth.accounts[i]})/(10**18)))
+print(f"attacker:", float(vul.functions.getBalance(attacker.address).call({'from': attacker.address})/(10**18)))
+# print("the attacker balance is:", float(w3.eth.get_balance(attacker)/(10**18)))
+
 
 
 
