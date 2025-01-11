@@ -16,7 +16,7 @@ contract Greeter {
         return greeting;
     }
 
-    receive() external payable {} // this contract can accept money
+    //receive() external payable {} // this contract can accept money
 
     function withdraw() external payable {
         //this function can receive money

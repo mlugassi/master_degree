@@ -33,7 +33,7 @@ w3 = Web3(Web3.HTTPProvider("http://127.0.0.1:8545"))
 # deploy the contract
 # Greeter = w3.eth.contract(abi=abi, bytecode=bytecode)
 
-bytecode, abi = compile("../part1/VulnerableWallet.sol")
+bytecode, abi = compile("./VulnerableWallet.sol")
 assert bytecode, "Bytecode is empty0"
 
 Vul = w3.eth.contract(abi=abi, bytecode=bytecode)
@@ -43,7 +43,7 @@ tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
 
 vul = w3.eth.contract(address=tx_receipt["contractAddress"], abi=abi)
 
-Abytecode, Aabi = compile("../part1/WalletAttack.sol")
+Abytecode, Aabi = compile("./WalletAttack.sol")
 assert Abytecode, "Bytecode is empty"
 Attacker = w3.eth.contract(abi=Aabi, bytecode=Abytecode)
 tx_hash1 = Attacker.constructor().transact(
@@ -53,14 +53,14 @@ attacker = w3.eth.contract(address=tx_receipt1["contractAddress"], abi=Aabi)
 
 # print("the wallet 10 balance is:", float(w3.eth.get_balance(w3.eth.accounts[10])/(10**18)))
 
-tx_hash2 = vul.functions.deposit().transact( {'from': w3.eth.accounts[2], 'value': w3.to_wei(1, 'ether')})
-tx_hash3 = vul.functions.deposit().transact( {'from': w3.eth.accounts[2], 'value': w3.to_wei(1, 'ether')})
-tx_hash4 = vul.functions.deposit().transact( {'from': w3.eth.accounts[2], 'value': w3.to_wei(1, 'ether')})
-tx_hash5 = vul.functions.deposit().transact( {'from': w3.eth.accounts[2], 'value': w3.to_wei(1, 'ether')})
-tx_hash6 = vul.functions.deposit().transact( {'from': w3.eth.accounts[2], 'value': w3.to_wei(1, 'ether')})
-print("the wallet 2 balance is:", float(w3.eth.get_balance(w3.eth.accounts[2])/(10**18)))
+for _ in range(5):
+    _ = vul.functions.deposit().transact( {'from': w3.eth.accounts[2], 'value': w3.to_wei(1, 'ether')})
+print("the wallet 2 balance before is:", float(w3.eth.get_balance(w3.eth.accounts[2])/(10**18)))
 
-# tx_hash2 = attacker.functions.exploit(vul).transact( {'from': w3.eth.accounts[1]})
+print("the wallet 1 balance before is:", float(w3.eth.get_balance(w3.eth.accounts[1])/(10**18)))
+tx_hash2 = attacker.functions.exploit(vul.address).transact( {'from': w3.eth.accounts[1], 'value': w3.to_wei(1, 'ether')})
+print("the wallet 1 balance after is:", float(w3.eth.get_balance(w3.eth.accounts[1])/(10**18)))
+print("the wallet 2 balance after is:", float(w3.eth.get_balance(w3.eth.accounts[2])/(10**18)))
 
 
 
