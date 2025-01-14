@@ -2,10 +2,11 @@ from web3 import Web3
 import solcx  # type: ignore
 from typing import Any
 from web3.types import Wei
-
+import os
 # run the line below to install the compiler ->  only once is needed.
-solcx.install_solc(version='0.8.19')
+# solcx.install_solc(version='0.8.19')
 
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 def compile(file_name: str) -> Any:
     # set the version
@@ -19,12 +20,13 @@ def compile(file_name: str) -> Any:
     contract_id, contract_interface = compiled_sol.popitem()
     return contract_interface['bin'], contract_interface['abi']
 
-
-bytecode, abi = compile("RPS.sol")
-with open("RPS.abi", "w") as f:
+# contract = "RSP"
+contract = "RSP_GPT"
+bytecode, abi = compile(f"{contract}.sol")
+with open(f"{contract}.abi", "w") as f:
     for line in abi:
         f.write(str(line))
         f.write("\n")
 
-with open("RPS.bin", "w") as f:
+with open(f"{contract}.bin", "w") as f:
     f.write(bytecode)

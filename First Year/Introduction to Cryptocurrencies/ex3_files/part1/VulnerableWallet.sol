@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
 contract Wallet {
@@ -18,9 +19,4 @@ contract Wallet {
         require(success);
         userBalances[msg.sender] = 0;
     }
-    
-    // This function allows you to fetch the balance of a user.
-    function getBalance(address user) external view returns (uint) {
-        return userBalances[user];
-    } 
 }

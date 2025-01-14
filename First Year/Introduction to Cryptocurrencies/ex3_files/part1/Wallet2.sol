@@ -14,11 +14,11 @@ contract Wallet2 {
 
     function sendTo(address payable destination, uint amount) external {
         //sends eth from the account of the message sender to the destination.
-        require(amount <= userBalances[msg.sender]);
+        require(amount >= userBalances[msg.sender]);
         (bool success, ) = destination.call{value: amount}("");
         require(success);
-        uint b = userBalances[msg.sender] - amount;
-        userBalances[msg.sender] = b ;
+        userBalances[msg.sender] -= amount;
+        // userBalances[msg.sender] = 0;
     }
 
     // This function allows you to fetch the balance of a user.
