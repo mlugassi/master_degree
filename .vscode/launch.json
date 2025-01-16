@@ -33,6 +33,19 @@
             ],
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}/First Year/Introduction to Cryptocurrencies/ex2_files"
+        },
+        {
+            "name": "Python: pytest EX3",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "justMyCode": true,
+            "args": [
+                "--maxfail=1",
+                "--disable-warnings"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/First Year/Introduction to Cryptocurrencies/ex3_files/part2"
         }        
     ]
 }
