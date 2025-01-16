@@ -168,12 +168,6 @@ def charlie(w3: Web3, rps: RPS, accounts: Accounts) -> Account:
 def get_commit(data: int, key: bytes) -> bytes:
     return bytes(Web3.solidity_keccak(['int256', 'bytes32'], [data, key]))
 
-def print_balances(rsp: RPS, state):
-        logger.info("Alice balance is:")
-        logger.info(state + "Alice balance is:" + str(rsp.balance_of(accounts[0])/(10**18)))
-        # logger.info(state, "Bob balance is:", float(w3.eth.get_balance(w3.eth.accounts[1])/(10**18)))
-        # logger.info(state, "Charlie balance is:", float(w3.eth.get_balance(w3.eth.accounts[2])/(10**18)))
-
 def test_two_game_flow(rps: RPS, alice: Any, bob: Any, charlie: Any) -> None:
     moves = [ROCK, PAPER, SCISSORS, ROCK]
     keys = [secrets.token_bytes(32) for _ in moves]
@@ -192,27 +186,27 @@ def test_two_game_flow(rps: RPS, alice: Any, bob: Any, charlie: Any) -> None:
     assert rps.get_game_state(1337) == NO_GAME
     assert rps.get_game_state(17) == NO_GAME
 
-# def test_insufficient_balance(rps: RPS, alice: Any) -> None:
-#     """Test that a player cannot bet more than their balance."""
-#     with pytest.raises(RevertException):
-#         rps.make_move(1, 2 * ONE_ETH, get_commit(ROCK, secrets.token_bytes(32)), from_account=alice)
+def test_insufficient_balance(rps: RPS, alice: Any) -> None:
+    """Test that a player cannot bet more than their balance."""
+    with pytest.raises(RevertException):
+        rps.make_move(1, 2 * ONE_ETH, get_commit(ROCK, secrets.token_bytes(32)), from_account=alice)
 
-# def test_double_move(rps: RPS, alice: Any) -> None:
-#     """Test that a player cannot make two moves in the same game."""
-#     commit = get_commit(ROCK, secrets.token_bytes(32))
-#     rps.make_move(2, ONE_ETH // 4, commit, from_account=alice)
-#     with pytest.raises(RevertException):
-#         rps.make_move(2, ONE_ETH // 4, commit, from_account=alice)
+def test_double_move(rps: RPS, alice: Any) -> None:
+    """Test that a player cannot make two moves in the same game."""
+    commit = get_commit(ROCK, secrets.token_bytes(32))
+    rps.make_move(2, ONE_ETH // 4, commit, from_account=alice)
+    with pytest.raises(RevertException):
+        rps.make_move(2, ONE_ETH // 4, commit, from_account=alice)
 
-# def test_double_reveal(rps: RPS, alice: Any) -> None:
-#     """Test that a player cannot reveal their move twice."""
-#     game_id = 3
-#     key = secrets.token_bytes(32)
-#     commit = get_commit(PAPER, key)
-#     rps.make_move(game_id, ONE_ETH // 4, commit, from_account=alice)
-#     rps.reveal_move(game_id, PAPER, key, from_account=alice)
-#     with pytest.raises(RevertException):
-#         rps.reveal_move(game_id, PAPER, key, from_account=alice)
+def test_double_reveal(rps: RPS, alice: Any) -> None:
+    """Test that a player cannot reveal their move twice."""
+    game_id = 3
+    key = secrets.token_bytes(32)
+    commit = get_commit(PAPER, key)
+    rps.make_move(game_id, ONE_ETH // 4, commit, from_account=alice)
+    rps.reveal_move(game_id, PAPER, key, from_account=alice)
+    with pytest.raises(RevertException):
+        rps.reveal_move(game_id, PAPER, key, from_account=alice)
 
 # def test_game_cancellation(rps: RPS, alice: Any, bob: Any) -> None:
 #     """Test that a game can be canceled if no move is made by the second player."""

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "../hardhat/console.sol";
+// import "../hardhat/console.sol";
 
 enum GameState {
     NO_GAME, //signifies that there is no game with this id (or there was and it is over)
@@ -96,11 +96,11 @@ contract RPS is IRPS {
         // amounts that are wagered are locked for the duration of the game.
         // A player should not be allowed to enter a commitment twice.
         // If two moves have already been entered, then this call reverts.
-        console.log("HIIIII");
+        // console.log("HIIIII");
         Game storage game = games[gameID];
-        console.log("BYYYEEE");
+        // console.log("BYYYEEE");
         require(game.state == GameState.NO_GAME || game.state == GameState.MOVE1, "Invalid game state");
-        console.log("DYEEEEE");
+        // console.log("DYEEEEE");
 
         if(game.state == GameState.MOVE1) {
             require(balances[msg.sender] >= game.betAmount, "Insufficient balance");
@@ -151,7 +151,7 @@ contract RPS is IRPS {
         // this function reverts on any other case and in any case of failure to properly reveal.
         Game storage game = games[gameID];
 
-        require(game.state == GameState.MOVE2, "Game is not in reveal phase");
+        require(game.state == GameState.MOVE2 || game.state == GameState.REVEAL1, "Game is not in reveal phase");
         require(msg.sender == game.player1 || msg.sender == game.player2, "Not a player in this game");
 
         if (msg.sender == game.player1) {
