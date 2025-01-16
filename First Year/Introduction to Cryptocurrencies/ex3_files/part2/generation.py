@@ -21,7 +21,7 @@ def compile(file_name: str) -> Any:
     return contract_interface['bin'], contract_interface['abi']
 
 # contract = "RSP"
-contract = "RSP_GPT"
+contract = "RPS_GPT"
 bytecode, abi = compile(f"{contract}.sol")
 with open(f"{contract}.abi", "w") as f:
     for line in abi:
