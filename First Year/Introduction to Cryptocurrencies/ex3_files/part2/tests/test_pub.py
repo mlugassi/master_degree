@@ -204,17 +204,18 @@ def test_double_reveal(rps: RPS, alice: Any) -> None:
     key = secrets.token_bytes(32)
     commit = get_commit(PAPER, key)
     rps.make_move(game_id, ONE_ETH // 4, commit, from_account=alice)
-    rps.reveal_move(game_id, PAPER, key, from_account=alice)
+    with pytest.raises(RevertException):
+        rps.reveal_move(game_id, PAPER, key, from_account=alice)
     with pytest.raises(RevertException):
         rps.reveal_move(game_id, PAPER, key, from_account=alice)
 
-# def test_game_cancellation(rps: RPS, alice: Any, bob: Any) -> None:
-#     """Test that a game can be canceled if no move is made by the second player."""
-#     game_id = 4
-#     commit = get_commit(SCISSORS, secrets.token_bytes(32))
-#     rps.make_move(game_id, ONE_ETH // 4, commit, from_account=alice)
-#     rps.cancel_game(game_id, from_account=alice)
-#     assert rps.get_game_state(game_id) == NO_GAME
+def test_game_cancellation(rps: RPS, alice: Any, bob: Any) -> None:
+    """Test that a game can be canceled if no move is made by the second player."""
+    game_id = 4
+    commit = get_commit(SCISSORS, secrets.token_bytes(32))
+    rps.make_move(game_id, ONE_ETH // 4, commit, from_account=alice)
+    rps.cancel_game(game_id, from_account=alice)
+    assert rps.get_game_state(game_id) == NO_GAME
 
 # def test_reveal_phase_timeout(rps: RPS, alice: Any, bob: Any) -> None:
 #     """Test that the first revealer can claim funds if the second player doesn't reveal on time."""
