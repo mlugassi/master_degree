@@ -8,6 +8,7 @@ from typing import Any, Tuple
 import web3.contract
 import os
 import sys
+
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -147,22 +148,22 @@ def rps(w3: Web3, accounts: Accounts) -> RPS:
 
 @ pytest.fixture(scope="module")
 def alice(w3: Web3, rps: RPS, accounts: Accounts) -> Account:
-    logger.info("Sending 1 ether from alice to the RPS contract")
-    check_send_money(w3, accounts[0], rps.address, ONE_ETH)
+    logger.info("Sending 10 ether from alice to the RPS contract")
+    check_send_money(w3, accounts[0], rps.address, ONE_ETH * 10)
     return accounts[0]
 
 
 @ pytest.fixture(scope="module")
 def bob(w3: Web3, rps: RPS, accounts: Accounts) -> Account:
-    logger.info("Sending 1 ether from bob to the RPS contract")
-    check_send_money(w3, accounts[1], rps.address, ONE_ETH)
+    logger.info("Sending 10 ether from bob to the RPS contract")
+    check_send_money(w3, accounts[1], rps.address, ONE_ETH * 10)
     return accounts[1]
 
 
 @ pytest.fixture(scope="module")
 def charlie(w3: Web3, rps: RPS, accounts: Accounts) -> Account:
-    logger.info("Sending 1 ether from charlie to the RPS contract")
-    check_send_money(w3, accounts[2], rps.address, ONE_ETH)
+    logger.info("Sending 10 ether from charlie to the RPS contract")
+    check_send_money(w3, accounts[2], rps.address, ONE_ETH * 10)
     return accounts[2]
 
 def get_commit(data: int, key: bytes) -> bytes:
@@ -189,7 +190,7 @@ def test_two_game_flow(rps: RPS, alice: Any, bob: Any, charlie: Any) -> None:
 def test_insufficient_balance(rps: RPS, alice: Any) -> None:
     """Test that a player cannot bet more than their balance."""
     with pytest.raises(RevertException):
-        rps.make_move(1, 2 * ONE_ETH, get_commit(ROCK, secrets.token_bytes(32)), from_account=alice)
+        rps.make_move(1, 50 * ONE_ETH + 1, get_commit(ROCK, secrets.token_bytes(32)), from_account=alice)
 
 def test_double_move(rps: RPS, alice: Any) -> None:
     """Test that a player cannot make two moves in the same game."""
@@ -217,47 +218,62 @@ def test_game_cancellation(rps: RPS, alice: Any, bob: Any) -> None:
     rps.cancel_game(game_id, from_account=alice)
     assert rps.get_game_state(game_id) == NO_GAME
 
-# def test_reveal_phase_timeout(rps: RPS, alice: Any, bob: Any) -> None:
-#     """Test that the first revealer can claim funds if the second player doesn't reveal on time."""
-#     game_id = 5
-#     moves = [ROCK, SCISSORS]
-#     keys = [secrets.token_bytes(32) for _ in moves]
-#     commits = [get_commit(move, key) for move, key in zip(moves, keys)]
+def test_reveal_phase_timeout(rps: RPS, alice: Any, bob: Any) -> None:
+    """Test that the first revealer can claim funds if the second player doesn't reveal on time."""
+    game_id = 5
+    moves = [ROCK, SCISSORS]
+    keys = [secrets.token_bytes(32) for _ in moves]
+    commits = [get_commit(move, key) for move, key in zip(moves, keys)]
 
-#     rps.make_move(game_id, ONE_ETH // 4, commits[0], from_account=alice)
-#     rps.make_move(game_id, ONE_ETH // 4, commits[1], from_account=bob)
-#     rps.reveal_move(game_id, moves[0], keys[0], from_account=alice)
+    alice_first_balance = rps.balance_of(alice)
 
-#     # Simulate timeout
-#     rps.w3.provider.make_request("evm_increaseTime", [REVEAL_TIME + 1])
-#     rps.w3.provider.make_request("evm_mine", [])
+    rps.make_move(game_id, ONE_ETH, commits[0], from_account=alice)
+    rps.make_move(game_id, ONE_ETH * 10, commits[1], from_account=bob)
+    rps.reveal_move(game_id, moves[0], keys[0], from_account=alice)
 
-#     rps.reveal_phase_ended(game_id, from_account=alice)
-#     assert rps.get_game_state(game_id) == NO_GAME
-#     assert rps.balance_of(alice) == 2 * ONE_ETH // 4
+    # Simulate timeout
+    rps.w3.provider.make_request("evm_increaseTime", [REVEAL_TIME + 1])
+    rps.w3.provider.make_request("evm_mine", [])
 
-# def test_reentrancy_protection(rps: RPS, alice: Any, bob: Any) -> None:
-#     """Test that the contract is secure against reentrancy attacks."""
-#     game_id = 6
-#     moves = [PAPER, ROCK]
-#     keys = [secrets.token_bytes(32) for _ in moves]
-#     commits = [get_commit(move, key) for move, key in zip(moves, keys)]
+    rps.reveal_phase_ended(game_id, from_account=alice)
+    assert rps.get_game_state(game_id) == NO_GAME
+    assert rps.balance_of(alice) == alice_first_balance + ONE_ETH
 
-#     rps.make_move(game_id, ONE_ETH // 4, commits[0], from_account=alice)
-#     rps.make_move(game_id, ONE_ETH // 4, commits[1], from_account=bob)
-#     rps.reveal_move(game_id, moves[0], keys[0], from_account=alice)
-#     rps.reveal_move(game_id, moves[1], keys[1], from_account=bob)
+def test_reentrancy_protection(rps: RPS, alice: Any, bob: Any) -> None:
+    """Test that the contract is secure against reentrancy attacks."""
+    game_id = 6
+    moves = [PAPER, ROCK]
+    keys = [secrets.token_bytes(32) for _ in moves]
+    commits = [get_commit(move, key) for move, key in zip(moves, keys)]
+    alice_first_balance = rps.balance_of(alice)
+    bob_first_balance = rps.balance_of(bob)
 
-#     with pytest.raises(RevertException):
-#         # Simulate a reentrancy attack
-#         rps.withdraw(ONE_ETH // 4, from_account=alice)
+    logger.info(f'ALIC BALANCE #1 {alice_first_balance/ONE_ETH}')
 
-# def test_withdrawal(rps: RPS, alice: Any) -> None:
-#     """Test that a player can withdraw their balance."""
-#     initial_balance = rps.balance_of(alice)
-#     withdraw_amount = ONE_ETH // 4
+    rps.make_move(game_id, ONE_ETH, commits[0], from_account=alice)
+    rps.make_move(game_id, ONE_ETH * 100, commits[1], from_account=bob)
+    rps.reveal_move(game_id, moves[0], keys[0], from_account=alice)
+    rps.reveal_move(game_id, moves[1], keys[1], from_account=bob)
+    logger.info(f'ALIC BALANCE #2 {rps.balance_of(alice)/ONE_ETH}')
+    with pytest.raises(RevertException):
+        # Simulate a reentrancy attack
+        rps.withdraw(alice_first_balance + ONE_ETH * 2, from_account=alice)
 
-#     rps.withdraw(withdraw_amount, from_account=alice)
-#     final_balance = rps.balance_of(alice)
+    with pytest.raises(RevertException):
+        # Simulate a reentrancy attack
+        rps.withdraw(bob_first_balance, from_account=bob)        
 
-#     assert final_balance == initial_balance - withdraw_amount
+def test_withdrawal(rps: RPS, alice: Any, bob: Any) -> None:
+    """Test that a player can withdraw their balance."""
+
+    alice_first_balance = rps.balance_of(alice)
+    bob_first_balance = rps.balance_of(bob)
+    logger.info(f'ALICE BALANCE #1 {alice_first_balance/ONE_ETH}')
+    logger.info(f'BOB BALANCE #1 {bob_first_balance/ONE_ETH}')
+    withdraw_amount = ONE_ETH * 5
+    rps.withdraw(withdraw_amount, from_account=bob)
+
+    assert rps.balance_of(bob) == bob_first_balance - withdraw_amount
+
+    rps.withdraw(alice_first_balance, from_account=alice)
+    assert rps.balance_of(alice) == 0 

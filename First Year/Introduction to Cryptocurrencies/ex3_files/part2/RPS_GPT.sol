@@ -80,9 +80,7 @@ contract RPS is IRPS {
     function getGameState(uint gameID) external view returns (GameState) {
         // Returns the state of the game at the current address as a GameState (see enum definition)
         // if(games[gameID].exists)  //TODO do not forget to check of we can know if key is exsits in a mapping
-            return games[gameID].state;
-        
-        // return GameState.NO_GAME;
+        return games[gameID].state;        
     }
 
     function makeMove(
@@ -179,7 +177,7 @@ contract RPS is IRPS {
         Game storage game = games[gameID];
 
         require(game.state == GameState.REVEAL1, "Game is not in reveal phase");
-        require(block.number >= game.revealBlock + revealPeriodLength, "Reveal phase not ended");
+        require(block.timestamp >= game.revealBlock + revealPeriodLength, "Reveal phase not ended");
         require(msg.sender == game.player1 || msg.sender == game.player2, "Only a player can end the reveal phase");
         require((game.revealedMove1 != Move.NONE && game.revealedMove2 == Move.NONE) || 
                  (game.revealedMove1 == Move.NONE && game.revealedMove2 != Move.NONE), "Only one reveal must be done");
