@@ -2,9 +2,12 @@ import random
 import numpy as np
 import sys
 import os
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Input, Dense
-from tensorflow.keras.initializers import RandomNormal, RandomUniform
+from tensorflow.keras.models import Sequential, load_model # type: ignore
+from tensorflow.keras.layers import Input, Dense # type: ignore
+from tensorflow.keras.initializers import RandomNormal, RandomUniform # type: ignore
+
+# from clearml import Task 
+# task = Task.init(project_name="Reinforcement_Learning", task_name="ex6") 
 
 MAX_SUM = 21
 
@@ -44,7 +47,7 @@ def question_b(num_of_train_episodes, num_of_test_episodes, epsilon, gamma):
 
     x_train = np.zeros((1,MAX_SUM*2 + 2), dtype=int)
     y_train = np.zeros((1,1), dtype=int)
-    layers = [22,11,5]
+    layers = [33,22,11]
     
     out = open("ex6_" + "_".join([str(l) for l in layers]) + ".log", "a")
     print("\n######################################################", file=out)
@@ -179,10 +182,10 @@ def test_model(model, vector_reward, out=sys.stdout):
 
 if __name__ == "__main__":
     # Init parameters
-    num_of_train_episodes = 0
-    num_of_test_episodes = 100
-    iteration = 100
-    epsilon = 0.5
+    num_of_train_episodes = 1
+    num_of_test_episodes = 1
+    iteration = 10000
+    epsilon = 0
     gamma = 0.9
     res = 0
     for i in range(iteration):

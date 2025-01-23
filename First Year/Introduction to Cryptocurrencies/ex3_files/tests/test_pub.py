@@ -12,7 +12,7 @@ import sys
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import generation
+import part2.generation as generation
 
 REVEAL_TIME: int = 5
 ONE_ETH = 10**18
@@ -82,6 +82,13 @@ class RPS:
     def address(self) -> Account:
         return Account(self.contract.address)
 
+    def deposit(self, amount, account):
+        logger.info(
+            f"Deposit {amount} to  {account}")
+        tx_hash = self.w3.eth.send_transaction({'to': self.address,'from': account, 'value': Wei(amount)})
+        tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+        assert tx_receipt["status"] == 1
+
     def get_game_state(self, game_id: int) -> int:
         return int(self.contract.functions.getGameState(game_id).call())
 
@@ -134,7 +141,7 @@ def rps(w3: Web3, accounts: Accounts) -> RPS:
     logger.info("Preparing the RPS contract")
     
     # TODO: change following values to the correct ones
-    rps_file = "RPS_GPT.sol"
+    rps_file = "../part2/RPS.sol"
     # bytecode, abi = ["compile ../RPS_GPT.sol", "../generation.py"]
     bytecode, abi = generation.compile(rps_file)
     # TODO: change the following value to the correct one
@@ -524,3 +531,102 @@ def test_cancel_game_unauthorized(rps: RPS, alice: Any, bob: Any) -> None:
     with pytest.raises(RevertException):
         rps.cancel_game(game_id, from_account=bob)
     assert rps.get_game_state(game_id) == MOVE2
+
+def test_refael(rps: RPS, alice: Any, bob: Any, charlie: Any) -> None:
+    moves = [0, PAPER]
+    keys = [secrets.token_bytes(32) for _ in moves]
+    commits = [get_commit(move, key) for move, key in zip(moves, keys)]
+
+    game_id = 1010
+    assert rps.get_game_state(game_id) == NO_GAME
+    rps.make_move(game_id, ONE_ETH//4, commits[0], from_account=alice)
+    assert rps.get_game_state(game_id) == MOVE1
+    rps.make_move(game_id, ONE_ETH//4, commits[1], from_account=bob)
+    assert rps.get_game_state(game_id) == MOVE2
+
+    with pytest.raises(RevertException):
+        rps.reveal_move(game_id, moves[0], keys[0], from_account=alice)
+    assert rps.get_game_state(game_id) == MOVE2
+
+    with pytest.raises(RevertException):
+        rps.reveal_move(game_id, moves[0], keys[1], from_account=alice) # fail due to key != move
+    assert rps.get_game_state(game_id) == MOVE2
+
+    with pytest.raises(RevertException):
+        rps.reveal_move(game_id, moves[0], keys[0], from_account=alice) # move not allowed
+    assert rps.get_game_state(game_id) == MOVE2
+
+    rps.reveal_move(game_id, moves[1], keys[1], from_account=bob)
+    assert rps.get_game_state(game_id) == REVEAL1
+
+    with pytest.raises(RevertException): # still not allowed
+        rps.reveal_move(game_id, moves[0], keys[0], from_account=alice)
+    assert rps.get_game_state(game_id) == REVEAL1
+    with pytest.raises(RevertException):
+        rps.reveal_move(game_id, moves[1], keys[1], from_account=bob)
+    assert rps.get_game_state(game_id) == REVEAL1
+
+############################## NEW #################################
+
+def test_withdraw_locked_money(rps: RPS, alice: Any, bob: Any, charlie: Any) -> None:
+    moves = [SCISSORS, PAPER]
+    keys = [secrets.token_bytes(32) for _ in moves]
+    commits = [get_commit(move, key) for move, key in zip(moves, keys)]
+    Abalance = rps.balance_of(alice)
+    assert Abalance > ONE_ETH * 3
+    game_id = 1234
+    rps.make_move(game_id, ONE_ETH, commits[0], from_account=alice)
+    with pytest.raises(RevertException):
+        rps.withdraw(Abalance, alice)
+    rps.withdraw(Abalance-ONE_ETH, alice)
+    assert rps.balance_of(alice) == 0
+
+    rps.deposit(ONE_ETH*5, alice)
+    assert rps.balance_of(alice) == ONE_ETH*5
+
+    with pytest.raises(RevertException):
+        rps.make_move(game_id, ONE_ETH, commits[0], from_account=alice)
+
+    rps.cancel_game(game_id,alice)
+    assert rps.balance_of(alice) == ONE_ETH*6
+    rps.withdraw(ONE_ETH*6, alice)
+    assert rps.balance_of(alice) == 0
+    
+    rps.deposit(ONE_ETH*5, alice)
+    rps.deposit(ONE_ETH*5, bob)
+
+    rps.make_move(game_id, ONE_ETH, commits[0], from_account=alice)
+    rps.make_move(game_id, ONE_ETH, commits[1], from_account=bob)
+    with pytest.raises(RevertException):
+        rps.cancel_game(game_id,bob)
+    with pytest.raises(RevertException):
+        rps.cancel_game(game_id,alice)
+
+
+def test_even_score(rps: RPS, alice: Any, bob: Any, charlie: Any) -> None:
+    moves = [SCISSORS, SCISSORS, SCISSORS]
+    keys = [secrets.token_bytes(32) for _ in moves]
+    commits = [get_commit(move, key) for move, key in zip(moves, keys)]
+    rps.deposit(ONE_ETH*5, alice)
+    rps.deposit(ONE_ETH*5, bob)
+    rps.deposit(ONE_ETH*5, charlie)
+    alice_balance = rps.balance_of(alice)
+    bob_balance = rps.balance_of(bob)
+    game_id = 1233
+
+    rps.make_move(game_id, ONE_ETH, commits[0], from_account=alice)
+    with pytest.raises(RevertException):
+        rps.reveal_move(game_id,moves[0], keys[0], alice)
+    rps.make_move(game_id, ONE_ETH, commits[1], from_account=bob)
+    with pytest.raises(RevertException):
+        rps.make_move(game_id, ONE_ETH, commits[2], from_account=charlie)
+
+    rps.reveal_move(game_id,moves[0], keys[0], alice)
+    rps.reveal_move(game_id,moves[1], keys[1], bob)
+    assert alice_balance == rps.balance_of(alice)
+    assert bob_balance == rps.balance_of(bob)
+
+
+
+
+

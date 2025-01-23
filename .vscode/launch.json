@@ -45,7 +45,7 @@
                 "--disable-warnings"
             ],
             "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/First Year/Introduction to Cryptocurrencies/ex3_files/part2"
+            "cwd": "${workspaceFolder}/First Year/Introduction to Cryptocurrencies/ex3_files"
         }        
     ]
 }

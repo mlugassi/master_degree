@@ -53,7 +53,7 @@ attacker = w3.eth.contract(address=tx_receipt1["contractAddress"], abi=Aabi)
 
 # print("the wallet 10 balance is:", float(w3.eth.get_balance(w3.eth.accounts[10])/(10**18)))
 
-for _ in range(5):
+for _ in range(2):
     _ = vul.functions.deposit().transact( {'from': w3.eth.accounts[2], 'value': w3.to_wei(1, 'ether')})
 print("the wallet 2 balance before is:", float(w3.eth.get_balance(w3.eth.accounts[2])/(10**18)))
 print("the wallet 1 balance before is:", float(w3.eth.get_balance(w3.eth.accounts[1])/(10**18)))
@@ -72,63 +72,3 @@ print("the vul balance after is:", float(w3.eth.get_balance(vul.address)/(10**18
 
 
 
-
-
-# tx_hash = vul.functions.sendTo(w3.eth.accounts[5]).transact( {'from': w3.eth.accounts[10]})
-
-# print("the VUL balance is:", float(w3.eth.get_balance(vul.address))/(10**18))
-# print("the wallet 5 balance is:", float(w3.eth.get_balance(w3.eth.accounts[5]))/(10**18))
-# print("the wallet 10 balance is:", float(w3.eth.get_balance(w3.eth.accounts[10])/(10**18)))
-
-# tx_hash = w3.eth.send_transaction({
-#     'to': w3.eth.accounts[2],
-#     'from': w3.eth.accounts[3],  # type: ignore
-#     'value': Wei(10**16)
-# })
-# tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-# print("the wallet 2 balance is:", float(w3.eth.get_balance(w3.eth.accounts[2,l;])/(10**18)))
-# print("the wallet 3 balance is:", float(w3.eth.get_balance(w3.eth.accounts[3])/(10**18)))
-
-# Submit the transaction that deploys the contract. It is deployed by accounts[0] which is the first of the 10 pre-made accounts created by hardhat.
-# tx_hash = Greeter.constructor("Hello!").transact(
-#     {'from': w3.eth.accounts[1]})
-
-# # Wait for the transaction to be mined, and get the transaction receipt
-# tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-
-# # get a contract instance
-# print(tx_receipt)
-# greeter = w3.eth.contract(address=tx_receipt["contractAddress"], abi=abi)
-
-# # here we call a view function (that does not require a transaction to the blockchain). This is done via '.call()'
-# print(greeter.functions.greet().call())
-
-# # here we call a function that changes the state and does require a blockchain transaction. This is done via '.transact()'
-# tx_hash = greeter.functions.setGreeting(
-#     'Nihao').transact({"from": w3.eth.accounts[5]})  # type: ignore
-
-# # wait for a transaction to be mined.
-# tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-
-# # check the greeting again.
-# print(greeter.functions.greet().call())
-
-# try:
-#     tx_hash = w3.eth.send_transaction({
-#         'to': greeter.address,
-#         'from': w3.eth.accounts[1],  # type: ignore
-#         'value': Wei(10**16)
-#     })
-#     tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-# except:
-#     pass
-# print("the contract's balance is:", w3.eth.get_balance(greeter.address))
-
-# # now we withdraw:
-# tx_hash = greeter.functions.withdraw().transact(
-#     {"from": w3.eth.accounts[2]})  # type: ignore
-# tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-
-# # print("the contract's balance is:", w3.eth.get_balance(greeter.address))
-# # print("account 2 now has:", w3.eth.get_balance(
-# #     w3.eth.accounts[2]))  # type: ignore
