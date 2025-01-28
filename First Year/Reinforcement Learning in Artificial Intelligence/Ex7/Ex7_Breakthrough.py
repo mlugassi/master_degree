@@ -7,12 +7,14 @@ import copy
 BOARD_SIZE = 8
 TILE_SIZE = 80
 WINDOW_SIZE = BOARD_SIZE * TILE_SIZE
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-GRAY = (191, 191, 191)
-LIGHT_GRAY = (127, 127, 127)
-GREEN = (0, 191, 0)
-RED = (127, 15, 15)
+
+class Colors:
+    White = (255, 255, 255)
+    Black = (0, 0, 0)
+    Gray = (191, 191, 191)
+    LightGray = (127, 127, 127)
+    Green = (0, 191, 0)
+    Red = (127, 15, 15)    
 
 # Game class
 class Breakthrough:
@@ -99,22 +101,22 @@ class Breakthrough:
 def draw_board(game):
     for y in range(BOARD_SIZE):
         for x in range(BOARD_SIZE):
-            color = WHITE if (x + y) % 2 == 0 else GRAY
+            color = Colors.White if (x + y) % 2 == 0 else Colors.Gray
             pygame.draw.rect(screen, color, (x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE))
             piece = game.board[y][x]
             if piece != 0:
-                piece_color = WHITE if piece == 1 else BLACK
+                piece_color = Colors.White if piece == 1 else Colors.Black
                 pygame.draw.circle(screen, piece_color, (x * TILE_SIZE + TILE_SIZE // 2, y * TILE_SIZE + TILE_SIZE // 2), TILE_SIZE // 3)
                 if piece == 1:  # Add black border for white pieces
-                    pygame.draw.circle(screen, BLACK, (x * TILE_SIZE + TILE_SIZE // 2, y * TILE_SIZE + TILE_SIZE // 2), TILE_SIZE // 3, 2)
+                    pygame.draw.circle(screen, Colors.Black, (x * TILE_SIZE + TILE_SIZE // 2, y * TILE_SIZE + TILE_SIZE // 2), TILE_SIZE // 3, 2)
 
 def draw_selection(game):
     if game.selection:
         x, y = game.selection
-        pygame.draw.rect(screen, LIGHT_GRAY, (x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE), 3)
+        pygame.draw.rect(screen, Colors.LightGray, (x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE), 3)
         for move in game.valid_moves((x, y)):
             mx, my = move
-            pygame.draw.rect(screen, GREEN, (mx * TILE_SIZE, my * TILE_SIZE, TILE_SIZE, TILE_SIZE), 3)
+            pygame.draw.rect(screen, Colors.Green, (mx * TILE_SIZE, my * TILE_SIZE, TILE_SIZE, TILE_SIZE), 3)
 
 # Main loop
 def main():
@@ -141,13 +143,13 @@ def main():
                         game.selection = None
 
             # Draw
-            screen.fill(BLACK)
+            screen.fill(Colors.Black)
             draw_board(game)
             draw_selection(game)
 
             if game.state == "Won":
                 winner = "White" if game.player == 1 else "Black"
-                text = font.render(f"{winner} wins!", True, GREEN)
+                text = font.render(f"{winner} wins!", True, Colors.Green)
                 screen.blit(text, (10, 10))
 
             pygame.display.flip()
