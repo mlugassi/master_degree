@@ -48,21 +48,16 @@ class MCTSPlayer:
     
     def simulate(self, game_state):
         """Simulate a random game to completion and return the result."""
-        player = self.player
-        while game_state.status == GameState.OnGoing:
-            my_wining_move = blocking_move = -1
-            if player == self.player:
-                my_wining_move = self.check_wining_move(player, game_state)
-            else:
-                blocking_move = self.check_wining_move(game_state.other(player), game_state)
+        while game_state.status == GameStatus.ONGOING:
+            my_wining_move = self.check_wining_move(self.player, game_state)
+            blocking_move = self.check_wining_move(game_state.other(self.player), game_state)
             if my_wining_move != -1:
                 move = my_wining_move
             elif blocking_move != -1:
                 move = blocking_move
-                # game_state.make(move)
-                # return self.player                
+                game_state.make(move)
+                return self.player                
             else: 
                 move = random.choice(game_state.legal_moves())
             game_state.make(move)
-            player = game_state.other(player)
         return game_state.status
