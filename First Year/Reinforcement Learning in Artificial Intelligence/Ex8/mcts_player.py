@@ -14,12 +14,12 @@ class MCTSPlayer:
 
         for _ in range(num_iterations):
             node = root
-            game_state = game.clone()
+            game_state: Breakthrough = game.clone()
 
             # Selection: Traverse the tree to find the best node to expand
             while not node.untried_moves and node.children:
                 node = node.best_child(self.exploration_weight)
-                game_state.make(node.move)
+                game_state.make_move(node.move[0], node.move[1])
 
             # Expansion: Expand a new child node if possible
             if node.untried_moves:
@@ -36,28 +36,9 @@ class MCTSPlayer:
         best_move = max(root.children.items(), key=lambda item: (item[1].win_count/item[1].visit_count))[0]
         return best_move
 
-    def check_wining_move(self, player, game_state):
-        game = game_state.clone()
-        game.player = player
-        for move in game_state.legal_moves():
-            game.make(move)
-            if game.winning_move(move):
-                return move
-            game.unmake(move)
-        return -1
-    
-    def simulate(self, game_state):
+    def simulate(self, game_state: Breakthrough):
         """Simulate a random game to completion and return the result."""
-        while game_state.status == GameStatus.ONGOING:
-            my_wining_move = self.check_wining_move(self.player, game_state)
-            blocking_move = self.check_wining_move(game_state.other(self.player), game_state)
-            if my_wining_move != -1:
-                move = my_wining_move
-            elif blocking_move != -1:
-                move = blocking_move
-                game_state.make(move)
-                return self.player                
-            else: 
-                move = random.choice(game_state.legal_moves())
-            game_state.make(move)
-        return game_state.status
+        while game_state.status == GameState.OnGoing:
+            move = random.choice(game_state.legal_moves())
+            game_state.make_move(move[0], move[1])
+        return game_state.state

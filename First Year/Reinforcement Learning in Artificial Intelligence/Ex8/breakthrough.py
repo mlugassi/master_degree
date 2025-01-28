@@ -14,40 +14,34 @@ class Breakthrough:
         for y in range(self.board_size):
             if y <= 1:
                 for x in range(self.board_size):
-                    self.board[y][x] = -1
+                    self.board[y][x] = Player.Black
             elif y >= 6:
                 for x in range(self.board_size):
-                    self.board[y][x] = 1
+                    self.board[y][x] = Player.White
         self.state = GameState.OnGoing
-        self.player = 1
+        self.player = Player.White
         self.selection = None
 
-        # Initialize Pygame
-        pygame.init()
-        self.screen = pygame.display.set_mode((self.window_size, self.window_size))
-        pygame.display.set_caption("Breakthrough")
-        self.font = pygame.font.SysFont(None, 36)        
-
-    def is_winner(self):
+    def get_state(self):
         for x in range(self.board_size):
-            if self.board[0][x] == 1:
-                return 1
-            if self.board[self.board_size - 1][x] == -1:
-                return -1
-        return 0
+            if self.board[0][x] == Player.White:
+                return GameState.WhiteWon
+            if self.board[self.board_size - 1][x] == Player.Black:
+                return GameState.BlackWon
+        return GameState.OnGoing
 
     def valid_moves(self, pos):
         x, y = pos
         player = self.player
         moves = []
-        for dx in [-1, 0, 1]:
+        for dx in [MoveDirection.Left, MoveDirection.Forward, MoveDirection.Right]:
             nx, ny = x + dx, y - player
             if 0 <= nx < self.board_size and 0 <= ny < self.board_size and self.board[ny][nx] != player:
-                if dx != 0 or self.board[ny][nx] == 0:
+                if dx != MoveDirection.Forward or self.board[ny][nx] == 0:
                     moves.append((nx, ny))
         return moves
 
-    def change_plater(self):
+    def change_player(self):
         return Player.Black if self.player == Player.White else Player.White
     
     def make_move(self, start, end):
@@ -55,18 +49,19 @@ class Breakthrough:
         x1, y1 = end
         self.board[y0][x0] = 0
         self.board[y1][x1] = self.player
-        if self.is_winner():
-            self.state = GameState.End
-        else:
-            self.player = self.change_plater()
+        self.state = self.get_state()
+        if self.state == GameState.OnGoing:
+            self.player = self.change_player()
+        self.selection = None
 
     def unmake_move(self, start, end, captured):
         x0, y0 = start
         x1, y1 = end
         self.board[y1][x1] = captured
         self.board[y0][x0] = self.player
-        self.player = self.change_plater()
+        self.player = self.change_player()
         self.state = GameState.OnGoing
+        self.selection = None
 
     def clone(self):
         return copy.deepcopy(self)
@@ -84,7 +79,7 @@ class Breakthrough:
         return ((x0, y0), (x1, y1))
 
     def status(self):
-        winner = self.is_winner()
+        winner = self.get_state()
         if winner:
             return "Won" if winner == self.player else "Lost"
         return "On Going"
@@ -145,13 +140,13 @@ class Breakthrough:
                 self.draw_board()
                 self.draw_selection()
 
-                if self.state == GameState.End:
-                    winner = "White" if self.player == Player.White else "Black"
-                    text = self.font.render(f"{winner} wins!", True, Colors.Green)
+                if self.state != GameState.OnGoing:
+                    winner = "White" if self.state == GameState.WhiteWon else "Black"
+                    text = self.font.render(f"{winner} Won!!", True, Colors.Green)
                     self.screen.blit(text, (10, 10))
 
-                pygame.display.flip()
-                clock.tick(30)        
+                    pygame.display.flip()
+                    clock.tick(30)        
 
 
 # Main loop

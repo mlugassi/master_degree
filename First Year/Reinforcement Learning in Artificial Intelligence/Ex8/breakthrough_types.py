@@ -13,4 +13,20 @@ class Player:
 
 class GameState:
     OnGoing = 0
-    End = 1
+    BlackWon = Player.Black
+    WhiteWon = Player.White
+
+class MoveDirection:
+    Left = -1
+    Forward = 0
+    Right = 1
+
+class Position:
+    def __init__(self, pos):
+        self.x = pos[0]
+        self.y = pos[1]
+
+class Move:
+    def __init__(self, from_pos, to_pos):
+        self.from_pos: Position = from_pos
+        self.to_pos: Position = to_pos

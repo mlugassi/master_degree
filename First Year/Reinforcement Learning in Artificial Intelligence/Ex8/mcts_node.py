@@ -28,9 +28,9 @@ class MCTSNode:
 
         return max(self.children.values(), key=uct_value)
 
-    def expand(self, move, game_state):
+    def expand(self, move, game_state: Breakthrough):
         """Expand a new child for the given move and return the child node."""
-        game_state.make(move)  # Apply the move to the game state
+        game_state.make_move(move[0], move[1])  # Apply the move to the game state
         child_node = MCTSNode(player=self.player, parent=self, move=move, game_state=game_state)
         self.children[move] = child_node
         self.untried_moves.remove(move)
@@ -46,6 +46,4 @@ class MCTSNode:
     def is_win(self, result):
         if result == self.player:
             return 1
-        elif result == GameState.End:
-            return 0.5
         return 0              
