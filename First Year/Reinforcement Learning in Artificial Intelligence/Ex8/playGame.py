@@ -27,6 +27,7 @@ def my_move(game: Breakthrough, screen, clock):
                     else:
                         game.selection = None
                 refresh(game,screen)
+                pygame.display.flip()
                 clock.tick(30)
     
 
@@ -55,13 +56,12 @@ def refresh(game, screen):
     screen.fill(Colors.Black)
     draw_board(game, screen)
     draw_selection(game, screen)
-    pygame.display.flip()
 
 def main():
     game = Breakthrough()
     white_mcts_player = MCTSPlayer(Player.White)
     black_mcts_player = MCTSPlayer(Player.Black)
-    play_against_me = True
+    play_against_me = False
     
     
     pygame.init()
@@ -70,26 +70,58 @@ def main():
     screen = pygame.display.set_mode((game.window_size, game.window_size))
     font = pygame.font.SysFont(None, 36)    
     clock = pygame.time.Clock()
+    
+    refresh(game, screen)
+    pygame.display.flip()
+    clock.tick(30) 
 
-    while True:
-        refresh(game, screen)
-        clock.tick(30) 
-        
+    while game.state == GameState.OnGoing:       
         if play_against_me and game.player == Player.White:
             move = my_move(game, screen, clock)
         elif not play_against_me and game.player == Player.White:
-            move = white_mcts_player.choose_move(game, num_iterations=2500)
+            move = white_mcts_player.choose_move(game, num_iterations=1)
         else:
-            move = black_mcts_player.choose_move(game, num_iterations=2500)
+            move = black_mcts_player.choose_move(game, num_iterations=100)
 
         game.make_move(move[0], move[1])
+        
+        refresh(game, screen) 
+        pygame.display.flip()
+        clock.tick(30)
+        
+    while True:
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                pygame.quit()
+                sys.exit()
+                          
+        winner = "White" if game.state == GameState.WhiteWon else "Black"
+        text = font.render(f"{winner} Won!!", True, Colors.Green)
+        screen.blit(text, (10, 10)) 
+        pygame.display.flip()
+        clock.tick(30)
 
-        if game.state != GameState.OnGoing:
-            winner = "White" if game.state == GameState.WhiteWon else "Black"
-            text = font.render(f"{winner} Won!!", True, Colors.Green)
-            screen.blit(text, (10, 10))
-            pygame.quit()
-            sys.exit()
+
+# # Example usage
+# if __name__ == "__main__":
+#     # Placeholder for the neural network and game state
+#     input_dim = 42  # Example input dimension
+#     num_actions = 7  # Example number of actions
+#     network = GameNetwork(input_dim, num_actions)
+
+#     # Create a PUCT player
+#     c_puct = 1.0
+#     num_simulations = 100
+#     player = PUCTPlayer(network, c_puct, num_simulations)
+
+#     # Example initial state
+#     initial_state = np.zeros(input_dim)
+
+#     # Select an action
+#     selected_action = player.select_action(initial_state)
+#     print("Selected Action:", selected_action)
+
+
 
 if __name__ == "__main__":
     main()

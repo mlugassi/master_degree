@@ -38,7 +38,7 @@ class MCTSPlayer:
 
     def simulate(self, game_state: Breakthrough):
         """Simulate a random game to completion and return the result."""
-        while game_state.status == GameState.OnGoing:
+        while game_state.state == GameState.OnGoing:
             move = random.choice(game_state.legal_moves())
             game_state.make_move(move[0], move[1])
         return game_state.state
