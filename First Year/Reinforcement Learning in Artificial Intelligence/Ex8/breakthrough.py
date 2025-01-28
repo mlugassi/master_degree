@@ -6,10 +6,10 @@ from breakthrough_types import *
 
 # Game class
 class Breakthrough:
-    def __init__(self, board_size=8, title_size=80):
+    def __init__(self, board_size=8, tile_size=80):
         self.board_size = board_size
-        self.title_size = title_size
-        self.window_size = title_size * board_size
+        self.tile_size = tile_size
+        self.window_size = tile_size * board_size
         self.board = [[0 for _ in range(self.board_size)] for _ in range(self.board_size)]
         for y in range(self.board_size):
             if y <= 1:
@@ -97,21 +97,21 @@ class Breakthrough:
         for y in range(self.board_size):
             for x in range(self.board_size):
                 color = Colors.White if (x + y) % 2 == 0 else Colors.Gray
-                pygame.draw.rect(self.screen, color, (x * self.title_size, y * self.title_size, self.title_size, self.title_size))
+                pygame.draw.rect(self.screen, color, (x * self.tile_size, y * self.tile_size, self.tile_size, self.tile_size))
                 piece = self.board[y][x]
                 if piece != 0:
                     piece_color = Colors.White if piece == 1 else Colors.Black
-                    pygame.draw.circle(self.screen, piece_color, (x * self.title_size + self.title_size // 2, y * self.title_size + self.title_size // 2), self.title_size // 3)
+                    pygame.draw.circle(self.screen, piece_color, (x * self.tile_size + self.tile_size // 2, y * self.tile_size + self.tile_size // 2), self.tile_size // 3)
                     if piece == 1:  # Add black border for white pieces
-                        pygame.draw.circle(self.screen, Colors.Black, (x * self.title_size + self.title_size // 2, y * self.title_size + self.title_size // 2), self.title_size // 3, 2)
+                        pygame.draw.circle(self.screen, Colors.Black, (x * self.tile_size + self.tile_size // 2, y * self.tile_size + self.tile_size // 2), self.tile_size // 3, 2)
 
     def draw_selection(self):
         if self.selection:
             x, y = self.selection
-            pygame.draw.rect(self.screen, Colors.LightGray, (x * self.title_size, y * self.title_size, self.title_size, self.title_size), 3)
+            pygame.draw.rect(self.screen, Colors.LightGray, (x * self.tile_size, y * self.tile_size, self.tile_size, self.tile_size), 3)
             for move in self.valid_moves((x, y)):
                 mx, my = move
-                pygame.draw.rect(self.screen, Colors.Green, (mx * self.title_size, my * self.title_size, self.title_size, self.title_size), 3)
+                pygame.draw.rect(self.screen, Colors.Green, (mx * self.tile_size, my * self.tile_size, self.tile_size, self.tile_size), 3)
     
     def run(self):
         clock = pygame.time.Clock()
@@ -124,7 +124,7 @@ class Breakthrough:
 
                 if event.type == MOUSEBUTTONDOWN and self.state == GameState.OnGoing:
                     mx, my = pygame.mouse.get_pos()
-                    x, y = mx // self.title_size, my // self.title_size
+                    x, y = mx // self.tile_size, my // self.tile_size
 
                     if self.selection is None and self.board[y][x] == self.player:
                         self.selection = (x, y)
