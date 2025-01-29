@@ -22,11 +22,11 @@ class CNN(nn.Module):
         super(CNN, self).__init__()
 
         # Convolutional layers
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, stride=1, padding=0)
-        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=3, padding=0)
-        self.conv3 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=0)
-        self.conv4 = nn.Conv2d(in_channels=128, out_channels=64, kernel_size=3, stride=3, padding=0)
-        self.conv5 = nn.Conv2d(in_channels=64, out_channels=32, kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=5, stride=1, padding=0)
+        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=0)
+        self.conv3 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=5, stride=1, padding=0)
+        self.conv4 = nn.Conv2d(in_channels=128, out_channels=64, kernel_size=3, stride=1, padding=0)
+        self.conv5 = nn.Conv2d(in_channels=64, out_channels=32, kernel_size=5, stride=1, padding=0)
 
         # Pooling layers
         self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
@@ -171,6 +171,8 @@ def test_model(data_type, model, test_loader, data_folder_path):
     total = 0
 
     misclassified_dir = Path(data_folder_path, f"misclassified_samples_{data_type}/")
+    if misclassified_dir.exists():
+        shutil.rmtree(misclassified_dir)
     misclassified_dir.mkdir(parents=True, exist_ok=True)
 
     with torch.no_grad():
@@ -204,7 +206,7 @@ if __name__ == "__main__":
     batch_size = 10
     epochs = 10
     learning_rate = 0.001
-    img_resize = (500, 500)
+    img_resize = (50, 50)
     with_regulation = True
     use_resnet = False
     load_last_model = False
