@@ -189,12 +189,12 @@ if __name__ == "__main__":
     epochs = 10
     learning_rate = 0.001
     img_resize = (50, 50)
-    with_regulation = True
+    with_regulation = False
     load_last_model = False
     do_training = True
     save_model = True
     test_train_data = True
-    test_test_data = True
+    test_test_data = False
 
     # Define and log parameters
     params = {
