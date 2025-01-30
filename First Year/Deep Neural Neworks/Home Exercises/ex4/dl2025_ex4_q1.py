@@ -17,8 +17,10 @@ os.environ['https_proxy'] = 'http://proxy-iil.intel.com:912'
 os.environ['no_proxy'] = 'localhost,127.0.0.1'
 
 class CNN(nn.Module):
-    def __init__(self, num_classes, num_of_conv_layers, num_of_fc_layers):
+    def __init__(self, num_classes, num_of_conv_layers, num_of_fc_layers, img_size=(50, 50)):
         super(CNN, self).__init__()
+        self.num_of_conv_layers = num_of_conv_layers
+        self.num_of_fc_layers = num_of_fc_layers
 
         # Convolutional layers
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=5, stride=3, padding=2)
@@ -27,27 +29,41 @@ class CNN(nn.Module):
         self.conv4 = nn.Conv2d(in_channels=128, out_channels=64, kernel_size=5, stride=1, padding=2)
         self.conv5 = nn.Conv2d(in_channels=64, out_channels=32, kernel_size=5, stride=1, padding=2)
 
-        # Pooling layers
+        # Pooling layer
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        # Adaptive Pooling Layer
-        self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
+        # Compute the flattened feature size dynamically
+        self.flattened_size = self._get_flattened_size(img_size)
 
         # Fully connected layers
-        self.fc1 = nn.Linear(32, 32)
-        self.fc2 = nn.Linear(32, num_classes)
+        self.fc1 = nn.Linear(self.flattened_size, 32) if num_of_fc_layers == 2 else None
+        self.fc2 = nn.Linear(32 if num_of_fc_layers == 2 else self.flattened_size, num_classes)
+
+    def _get_flattened_size(self, img_size):
+        """Helper function to compute the output size before the fully connected layers."""
+        with torch.no_grad():
+            dummy_input = torch.randn(1, 3, *img_size)  # Simulate a batch of size 1 with given image size
+            x = torch.relu(self.conv1(dummy_input))
+            x = self.pool(torch.relu(self.conv2(x)))
+            if self.num_of_conv_layers == 5:
+                x = torch.relu(self.conv3(x))
+                x = self.pool(torch.relu(self.conv4(x)))
+            x = torch.relu(self.conv5(x))  # No global pooling
+            x = self.pool(x)  # Ensure spatial dimensions are reduced
+            return x.numel()  # Flattened feature size
 
     def forward(self, x):
         x = torch.relu(self.conv1(x))
         x = self.pool(torch.relu(self.conv2(x)))
-        if num_of_conv_layers == 5:
+        if self.num_of_conv_layers == 5:
             x = torch.relu(self.conv3(x))
             x = self.pool(torch.relu(self.conv4(x)))
-        x = self.global_pool(torch.relu(self.conv5(x)))
+        x = torch.relu(self.conv5(x))
+        x = self.pool(x)  # Ensure spatial reduction before FC layers
 
-        x = torch.flatten(x, 1)
+        x = torch.flatten(x, 1)  # Flatten before FC layers
 
-        if num_of_fc_layers == 2:
+        if self.num_of_fc_layers == 2:
             x = torch.relu(self.fc1(x))
         x = self.fc2(x)
         return x
@@ -73,13 +89,7 @@ def organize_images(src_dir, dest_dir):
     
     print(f"Images organized into {smoking_dir} and {not_smoking_dir}")
 
-def prepare_data(data_dir, batch_size=32, img_resize=(300, 300)):
-    transform = transforms.Compose([
-        transforms.Resize(img_resize),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
-
+def prepare_data(data_dir, batch_size=32, img_resize=(300, 300), use_augmentation=False):
     # Create a custom dataset that includes image paths
     class ImageFolderWithPaths(datasets.ImageFolder):
         def __getitem__(self, index):
@@ -89,6 +99,18 @@ def prepare_data(data_dir, batch_size=32, img_resize=(300, 300)):
             img_path = self.imgs[index][0]
             return img, label, img_path
 
+    train_transform = [
+        transforms.Resize(img_resize),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ]
+    
+    if use_augmentation:
+        train_transform.insert(1, transforms.RandomHorizontalFlip())
+        train_transform.insert(2, transforms.RandomRotation(15))
+        train_transform.insert(3, transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1))
+    
+    transform = transforms.Compose(train_transform)    
     dataset = ImageFolderWithPaths(root=data_dir, transform=transform)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
@@ -191,15 +213,18 @@ if __name__ == "__main__":
     batch_size = 10
     epochs = 50
     learning_rate = 0.001
-    img_resize = (50, 50)
-    with_regulation = False
+    img_resize = (100, 100)
+    use_regulation = False
+    use_augmentation = False
     load_last_model = False
     do_training = True
     save_model = True
     test_train_data = True
     test_test_data = False
-    num_of_conv_layers = 5
-    num_of_fc_layers = 2
+    # num_of_conv_layers = 5
+    num_of_conv_layers = 3
+    # num_of_fc_layers = 2
+    num_of_fc_layers = 1
     optimizer = "Adam"
     # optimizer = "RMSprop"
 
@@ -210,7 +235,8 @@ if __name__ == "__main__":
         "epochs": epochs,
         "learning_rate": learning_rate,
         "img_resize": img_resize,
-        "with_regulation": with_regulation,
+        "use_regulation": use_regulation,
+        "use_augmentation": use_augmentation,
         "load_last_model": load_last_model,
         "do_training": do_training,
         "save_model": save_model,
@@ -243,11 +269,11 @@ if __name__ == "__main__":
         organize_images(validation_data_folder_path, validation_data_folder_path)
         organize_images(test_data_folder_path, test_data_folder_path)
 
-    train_loader, class_names = prepare_data(data_dir=train_data_folder_path, batch_size=batch_size, img_resize=img_resize)
-    val_loader, _ = prepare_data(data_dir=validation_data_folder_path, batch_size=batch_size, img_resize=img_resize)
-    test_loader, _ = prepare_data(data_dir=test_data_folder_path, batch_size=batch_size, img_resize=img_resize)
+    train_loader, class_names = prepare_data(data_dir=train_data_folder_path, batch_size=batch_size, img_resize=img_resize, use_augmentation=use_augmentation)
+    val_loader, _ = prepare_data(data_dir=validation_data_folder_path, batch_size=batch_size, img_resize=img_resize, use_augmentation=False)
+    test_loader, _ = prepare_data(data_dir=test_data_folder_path, batch_size=batch_size, img_resize=img_resize, use_augmentation=False)
 
-    model = CNN(len(class_names), num_of_conv_layers, num_of_fc_layers)
+    model = CNN(len(class_names), num_of_conv_layers, num_of_fc_layers, img_size=img_resize)
 
     if load_last_model and os.path.exists(model_path):
         model.load_state_dict(torch.load(model_path))
@@ -255,9 +281,9 @@ if __name__ == "__main__":
 
     if do_training:
         if optimizer == "RMSprop":
-            opt = torch.optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=1e-3 if with_regulation else 0)
+            opt = torch.optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=1e-3 if use_regulation else 0)
         else:
-            opt = torch.optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=1e-3 if with_regulation else 0)
+            opt = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-3 if use_regulation else 0)
 
         train_model(logger, model, train_loader, val_loader, num_epochs=epochs, optimizer=opt)
 
