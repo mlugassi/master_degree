@@ -17,7 +17,7 @@ os.environ['https_proxy'] = 'http://proxy-iil.intel.com:912'
 os.environ['no_proxy'] = 'localhost,127.0.0.1'
 
 class CNN(nn.Module):
-    def __init__(self, num_classes=2):
+    def __init__(self, num_classes, num_of_conv_layers, num_of_fc_layers):
         super(CNN, self).__init__()
 
         # Convolutional layers
@@ -34,19 +34,21 @@ class CNN(nn.Module):
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
 
         # Fully connected layers
-        self.fc1 = nn.Linear(32, 16)
-        self.fc2 = nn.Linear(16, num_classes)
+        self.fc1 = nn.Linear(32, 32)
+        self.fc2 = nn.Linear(32, num_classes)
 
     def forward(self, x):
         x = torch.relu(self.conv1(x))
         x = self.pool(torch.relu(self.conv2(x)))
-        x = torch.relu(self.conv3(x))
-        x = self.pool(torch.relu(self.conv4(x)))
+        if num_of_conv_layers == 5:
+            x = torch.relu(self.conv3(x))
+            x = self.pool(torch.relu(self.conv4(x)))
         x = self.global_pool(torch.relu(self.conv5(x)))
 
         x = torch.flatten(x, 1)
 
-        x = torch.relu(self.fc1(x))
+        if num_of_fc_layers == 2:
+            x = torch.relu(self.fc1(x))
         x = self.fc2(x)
         return x
 
@@ -93,12 +95,11 @@ def prepare_data(data_dir, batch_size=32, img_resize=(300, 300)):
     return dataloader, dataset.classes
 
 # Step 3: Training loop with validation
-def train_model(logger, model, train_loader, val_loader, num_epochs=5, learning_rate=0.001, with_regulation=True):
+def train_model(logger, model, train_loader, val_loader, optimizer, num_epochs=5):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     
     criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-3 if with_regulation else 0)
 
     for epoch in range(num_epochs):
         model.train()
@@ -142,7 +143,7 @@ def train_model(logger, model, train_loader, val_loader, num_epochs=5, learning_
         print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, "
               f"Val Loss: {val_loss:.4f}, Val Accuracy: {val_accuracy:.2f}%")
 
-def test_model(data_type, model, test_loader, data_folder_path):
+def test_model(data_type, model, test_loader, data_folder_path, task_name):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     
@@ -152,7 +153,7 @@ def test_model(data_type, model, test_loader, data_folder_path):
     correct = 0
     total = 0
 
-    misclassified_dir = Path(data_folder_path, f"misclassified_samples_{data_type}/")
+    misclassified_dir = Path(data_folder_path, f"misclassified_samples_{task_name}_{data_type}/")
     if misclassified_dir.exists():
         shutil.rmtree(misclassified_dir)
     misclassified_dir.mkdir(parents=True, exist_ok=True)
@@ -185,8 +186,10 @@ def test_model(data_type, model, test_loader, data_folder_path):
 # Step 4: Full pipeline
 if __name__ == "__main__":
     # Confiuration 
+    task_name = "DatasetQ1V1"
+
     batch_size = 10
-    epochs = 10
+    epochs = 50
     learning_rate = 0.001
     img_resize = (50, 50)
     with_regulation = False
@@ -195,9 +198,14 @@ if __name__ == "__main__":
     save_model = True
     test_train_data = True
     test_test_data = False
+    num_of_conv_layers = 5
+    num_of_fc_layers = 2
+    optimizer = "Adam"
+    # optimizer = "RMSprop"
 
     # Define and log parameters
     params = {
+        "task_name": task_name,
         "batch_size": batch_size,
         "epochs": epochs,
         "learning_rate": learning_rate,
@@ -207,14 +215,20 @@ if __name__ == "__main__":
         "do_training": do_training,
         "save_model": save_model,
         "test_train_data": test_train_data,
-        "test_test_data": test_test_data
+        "test_test_data": test_test_data,
+        "num_of_conv_layers": num_of_conv_layers,
+        "num_of_fc_layers": num_of_fc_layers,
+        "optimizer": optimizer
     }
 
-    task_name = "DatasetV1"
     root_path = "First Year\Deep Neural Neworks\Home Exercises\ex4"
-    model_path = Path(root_path, "My" + task_name + ".model")
-    zip_path = Path(root_path, "student_305536575.zip")
-    extract_to =Path(root_path, "student_305536575")
+    model_path = Path(root_path, task_name + ".model")
+    if task_name == "DatasetQ1V1":
+        zip_path = Path(root_path, "student_305536575.zip")
+        extract_to =Path(root_path, "student_305536575")
+    else:
+        zip_path = Path(root_path, "student_305536575_v2.zip")
+        extract_to =Path(root_path, "student_305536575_v2")        
     train_data_folder_path = Path(extract_to, "Training\Training\smoking")
     validation_data_folder_path = Path(extract_to, "Validation\Validation\smoking")
     test_data_folder_path = Path(extract_to, "Testing\Testing\smoking")
@@ -233,14 +247,19 @@ if __name__ == "__main__":
     val_loader, _ = prepare_data(data_dir=validation_data_folder_path, batch_size=batch_size, img_resize=img_resize)
     test_loader, _ = prepare_data(data_dir=test_data_folder_path, batch_size=batch_size, img_resize=img_resize)
 
-    model = CNN(len(class_names))
+    model = CNN(len(class_names), num_of_conv_layers, num_of_fc_layers)
 
     if load_last_model and os.path.exists(model_path):
         model.load_state_dict(torch.load(model_path))
         print(f"Model loaded from '{model_path}'")
 
-    if do_training:    
-        train_model(logger, model, train_loader, val_loader, num_epochs=epochs, learning_rate=learning_rate)
+    if do_training:
+        if optimizer == "RMSprop":
+            opt = torch.optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=1e-3 if with_regulation else 0)
+        else:
+            opt = torch.optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=1e-3 if with_regulation else 0)
+
+        train_model(logger, model, train_loader, val_loader, num_epochs=epochs, optimizer=opt)
 
     if save_model:
         torch.save(model.state_dict(), model_path)
@@ -254,8 +273,9 @@ if __name__ == "__main__":
         print(f"  - {key}: {value}")
     print("=========================\n")
     print("\n===== TEST RESULT =====")
+    test_model("VALIDATION DATA", model, val_loader, root_path, task_name)
     if test_train_data:
-        test_model("TRAINED DATA", model, train_loader, root_path)
+        test_model("TRAINED DATA", model, train_loader, root_path, task_name)
     if test_test_data:
-        test_model("TEST DATA", model, test_loader, root_path)
+        test_model("TEST DATA", model, test_loader, root_path, task_name)
     print("=========================\n")
