@@ -18,16 +18,15 @@ os.environ['no_proxy'] = 'localhost,127.0.0.1'
 
 # Define ResNet model
 class ResNetModel(nn.Module):
-    def __init__(self, num_classes=2):
+    def __init__(self, num_classes, pretrained):
         super(ResNetModel, self).__init__()
-        self.resnet = models.resnet18(pretrained=True)
+        self.resnet = models.resnet18(pretrained=pretrained)
         in_features = self.resnet.fc.in_features
         self.resnet.fc = nn.Linear(in_features, num_classes)
     
     def forward(self, x):
         return self.resnet(x)
 
-# Step 1: Extract the zip file
 def extract_zip(zip_path, extract_to):
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         zip_ref.extractall(extract_to)
@@ -49,13 +48,7 @@ def organize_images(src_dir, dest_dir):
     
     print(f"Images organized into {smoking_dir} and {not_smoking_dir}")
 
-def prepare_data(data_dir, batch_size=32, img_resize=(300, 300)):
-    transform = transforms.Compose([
-        transforms.Resize(img_resize),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
-
+def prepare_data(data_dir, batch_size=32, img_resize=(300, 300), use_augmentation=False):
     # Create a custom dataset that includes image paths
     class ImageFolderWithPaths(datasets.ImageFolder):
         def __getitem__(self, index):
@@ -65,18 +58,29 @@ def prepare_data(data_dir, batch_size=32, img_resize=(300, 300)):
             img_path = self.imgs[index][0]
             return img, label, img_path
 
+    train_transform = [
+        transforms.Resize(img_resize),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ]
+    
+    if use_augmentation:
+        train_transform.insert(1, transforms.RandomHorizontalFlip())
+        train_transform.insert(2, transforms.RandomRotation(15))
+        train_transform.insert(3, transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1))
+    
+    transform = transforms.Compose(train_transform)    
     dataset = ImageFolderWithPaths(root=data_dir, transform=transform)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     return dataloader, dataset.classes
 
 # Step 3: Training loop with validation
-def train_model(logger, model, train_loader, val_loader, num_epochs=5, learning_rate=0.001, with_regulation=True):
+def train_model(logger, model, train_loader, val_loader, optimizer, num_epochs=5):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     
     criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-3 if with_regulation else 0)
 
     for epoch in range(num_epochs):
         model.train()
@@ -120,7 +124,7 @@ def train_model(logger, model, train_loader, val_loader, num_epochs=5, learning_
         print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, "
               f"Val Loss: {val_loss:.4f}, Val Accuracy: {val_accuracy:.2f}%")
 
-def test_model(data_type, model, test_loader, data_folder_path):
+def test_model(data_type, model, test_loader, data_folder_path, task_name):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     
@@ -130,7 +134,7 @@ def test_model(data_type, model, test_loader, data_folder_path):
     correct = 0
     total = 0
 
-    misclassified_dir = Path(data_folder_path, f"misclassified_samples_{data_type}/")
+    misclassified_dir = Path(data_folder_path, f"misclassified_samples_{task_name}_{data_type}/")
     if misclassified_dir.exists():
         shutil.rmtree(misclassified_dir)
     misclassified_dir.mkdir(parents=True, exist_ok=True)
@@ -163,39 +167,52 @@ def test_model(data_type, model, test_loader, data_folder_path):
 # Step 4: Full pipeline
 if __name__ == "__main__":
     # Confiuration 
-    batch_size = 50
+    task_name = "DatasetQ2V1"
+
+    batch_size = 10
     epochs = 50
     learning_rate = 0.001
-    img_resize = (100, 100)
-    with_regulation = True
+    img_resize = (50, 50)
+    use_regulation = False
+    use_augmentation = False
     load_last_model = False
+    do_training = True
     save_model = True
-    test_train_data = False
-    test_test_data = True
+    test_train_data = True
+    test_test_data = False
+    pretrained = False
+    optimizer = "Adam"
+    # optimizer = "RMSprop"
 
     # Define and log parameters
     params = {
+        "task_name": task_name,
         "batch_size": batch_size,
         "epochs": epochs,
         "learning_rate": learning_rate,
         "img_resize": img_resize,
-        "with_regulation": with_regulation,
+        "use_regulation": use_regulation,
+        "use_augmentation": use_augmentation,
         "load_last_model": load_last_model,
+        "do_training": do_training,
         "save_model": save_model,
         "test_train_data": test_train_data,
-        "test_test_data": test_test_data
+        "test_test_data": test_test_data,
+        "pretrained": pretrained,
+        "optimizer": optimizer
     }
 
-    task_name = "DatasetV1"
     root_path = "First Year\Deep Neural Neworks\Home Exercises\ex4"
-    model_path = Path(root_path, "ResNet" + task_name + ".model")
-    zip_path = Path(root_path, "student_305536575.zip")
-    extract_to =Path(root_path, "student_305536575")
+    model_path = Path(root_path, task_name + ".model")
+    if task_name == "DatasetQ2V1":
+        zip_path = Path(root_path, "student_305536575.zip")
+        extract_to =Path(root_path, "student_305536575")
+    else:
+        zip_path = Path(root_path, "student_305536575_v2.zip")
+        extract_to =Path(root_path, "student_305536575_v2")        
     train_data_folder_path = Path(extract_to, "Training\Training\smoking")
     validation_data_folder_path = Path(extract_to, "Validation\Validation\smoking")
     test_data_folder_path = Path(extract_to, "Testing\Testing\smoking")
-
-
 
     task = Task.init(project_name="DNN Ex4", task_name=task_name) 
     logger = task.get_logger()
@@ -207,17 +224,23 @@ if __name__ == "__main__":
         organize_images(validation_data_folder_path, validation_data_folder_path)
         organize_images(test_data_folder_path, test_data_folder_path)
 
-    train_loader, class_names = prepare_data(data_dir=train_data_folder_path, batch_size=batch_size, img_resize=img_resize)
-    val_loader, _ = prepare_data(data_dir=validation_data_folder_path, batch_size=batch_size, img_resize=img_resize)
-    test_loader, _ = prepare_data(data_dir=test_data_folder_path, batch_size=batch_size, img_resize=img_resize)
+    train_loader, class_names = prepare_data(data_dir=train_data_folder_path, batch_size=batch_size, img_resize=img_resize, use_augmentation=use_augmentation)
+    val_loader, _ = prepare_data(data_dir=validation_data_folder_path, batch_size=batch_size, img_resize=img_resize, use_augmentation=False)
+    test_loader, _ = prepare_data(data_dir=test_data_folder_path, batch_size=batch_size, img_resize=img_resize, use_augmentation=False)
 
-    model = ResNetModel(len(class_names))
+    model = ResNetModel(len(class_names), pretrained=pretrained)
 
     if load_last_model and os.path.exists(model_path):
         model.load_state_dict(torch.load(model_path))
         print(f"Model loaded from '{model_path}'")
-        
-    train_model(logger, model, train_loader, val_loader, num_epochs=epochs, learning_rate=learning_rate)
+
+    if do_training:
+        if optimizer == "RMSprop":
+            opt = torch.optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=1e-3 if use_regulation else 0)
+        else:
+            opt = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-3 if use_regulation else 0)
+
+        train_model(logger, model, train_loader, val_loader, num_epochs=epochs, optimizer=opt)
 
     if save_model:
         torch.save(model.state_dict(), model_path)
@@ -231,9 +254,9 @@ if __name__ == "__main__":
         print(f"  - {key}: {value}")
     print("=========================\n")
     print("\n===== TEST RESULT =====")
-    
+    test_model("VALIDATION DATA", model, val_loader, root_path, task_name)
     if test_train_data:
-        test_model("TRAINED DATA", model, train_loader, root_path)
+        test_model("TRAINED DATA", model, train_loader, root_path, task_name)
     if test_test_data:
-        test_model("TEST DATA", model, test_loader, root_path)
+        test_model("TEST DATA", model, test_loader, root_path, task_name)
     print("=========================\n")

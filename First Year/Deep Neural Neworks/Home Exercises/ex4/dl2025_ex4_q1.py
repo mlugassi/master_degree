@@ -208,23 +208,23 @@ def test_model(data_type, model, test_loader, data_folder_path, task_name):
 # Step 4: Full pipeline
 if __name__ == "__main__":
     # Confiuration 
-    task_name = "DatasetQ1V1"
+    task_name = "DatasetQ1V2"
 
-    batch_size = 10
+    batch_size = 50
     epochs = 50
     learning_rate = 0.001
-    img_resize = (100, 100)
-    use_regulation = False
-    use_augmentation = False
+    img_resize = (50, 50)
+    use_regulation = True
+    use_augmentation = True
     load_last_model = False
-    do_training = True
-    save_model = True
-    test_train_data = True
-    test_test_data = False
-    # num_of_conv_layers = 5
-    num_of_conv_layers = 3
-    # num_of_fc_layers = 2
-    num_of_fc_layers = 1
+    do_training = False
+    save_model = False
+    test_train_data = False
+    test_test_data = True
+    num_of_conv_layers = 5
+    # num_of_conv_layers = 3
+    num_of_fc_layers = 2
+    # num_of_fc_layers = 1
     optimizer = "Adam"
     # optimizer = "RMSprop"
 
