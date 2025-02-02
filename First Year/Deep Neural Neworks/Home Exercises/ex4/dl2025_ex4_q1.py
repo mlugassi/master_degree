@@ -213,18 +213,18 @@ if __name__ == "__main__":
     batch_size = 50
     epochs = 50
     learning_rate = 0.001
-    img_resize = (50, 50)
+    img_resize = (300, 300)
     use_regulation = True
     use_augmentation = True
-    load_last_model = False
+    load_last_model = True
     do_training = False
     save_model = False
     test_train_data = False
     test_test_data = True
     num_of_conv_layers = 5
     # num_of_conv_layers = 3
-    num_of_fc_layers = 2
-    # num_of_fc_layers = 1
+    # num_of_fc_layers = 2
+    num_of_fc_layers = 1
     optimizer = "Adam"
     # optimizer = "RMSprop"
 

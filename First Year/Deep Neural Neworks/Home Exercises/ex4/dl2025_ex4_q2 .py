@@ -167,20 +167,20 @@ def test_model(data_type, model, test_loader, data_folder_path, task_name):
 # Step 4: Full pipeline
 if __name__ == "__main__":
     # Confiuration 
-    task_name = "DatasetQ2V1"
+    task_name = "DatasetQ2V2"
 
-    batch_size = 10
+    batch_size = 100
     epochs = 50
     learning_rate = 0.001
     img_resize = (50, 50)
-    use_regulation = False
-    use_augmentation = False
-    load_last_model = False
-    do_training = True
-    save_model = True
-    test_train_data = True
-    test_test_data = False
-    pretrained = False
+    use_regulation = True
+    use_augmentation = True
+    load_last_model = True
+    do_training = False
+    save_model = False
+    test_train_data = False
+    test_test_data = True
+    pretrained = True
     optimizer = "Adam"
     # optimizer = "RMSprop"
 
