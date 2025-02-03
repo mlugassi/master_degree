@@ -156,3 +156,11 @@ class Contract:
     def address(self) -> EthereumAddress:
         """The ethereum address of the contract."""
         return self._address
+
+    def get_first_owner(self) -> EthereumAddress:
+        """Returns the first owner of the contract."""
+        return self._contract.functions.getFirstOwner().call()
+
+    def get_other_owner(self) -> EthereumAddress:
+        """Returns the second owner of the contract."""
+        return self._contract.functions.getOtherOwner().call()

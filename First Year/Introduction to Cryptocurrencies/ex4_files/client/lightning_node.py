@@ -7,7 +7,7 @@ from eth_typing import HexAddress, HexStr
 from client.network import Message, Network
 from client.node import Node
 from web3 import Web3
-from .utils 
+from .utils import *
 
 
 class LightningNode(Node):
@@ -28,7 +28,8 @@ class LightningNode(Node):
         self._eth_address = eth_address
         # Maintain an internal list/dict of channels.
         self._channels: Dict[EthereumAddress, ChannelStateMessage] = {}
-        self._channels_other_party: Dict[EthereumAddress, IPAddress] = {}
+        self._channels_contracts: Dict[EthereumAddress, Contract] = {}
+        self._channels_other_party_ip: Dict[EthereumAddress, IPAddress] = {}
 
     def get_list_of_channels(self) -> List[EthereumAddress]:
         """returns a list of channels managed by this node. The list will include all open channels,
@@ -55,12 +56,13 @@ class LightningNode(Node):
             balance1=amount_in_wei,
             balance2=0,
             serial_number=0,
-            # sig=Signature((0, sign(self.private_key, ), "")) #TODO need to understnad all the keta with the signaure here
+            sig=Signature((0, "", ""))#TODO need to understnad all the keta with the signaure here
         )
         self._channels[deployed_channel_address] = initial_state
-        self._channels_other_party[deployed_channel_address] = other_party_ip_address
+        self._channels_contracts[other_party_eth_address] = Contract(deployed_channel_address, self._contract_abi, self._w3) 
+        self._channels_other_party_ip[deployed_channel_address] = other_party_ip_address
 
-        self._network.send_message(other_party_ip_address, Message.NOTIFY_OF_CHANNEL, deployed_channel_address, self.ip_address)
+        self._network.send_message(other_party_ip_address, Message.NOTIFY_OF_CHANNEL, initial_state)
 
         return deployed_channel_address
 
@@ -93,15 +95,17 @@ class LightningNode(Node):
         if state.balance1 < amount_in_wei:
             raise ValueError("Insufficient balance in channel.")
         # Update dummy state: reduce our balance, increase counter, etc.
-        new_state: ChannelStateMessage = ChannelStateMessage()
-        new_state.contract_address = channel_address
-        new_state.balance1 = state.balance1 - amount_in_wei
-        new_state.balance2 = state.balance2 - amount_in_wei
-        new_state.serial_number = state.serial_number + 1
+        im_am_first_owner = self._channels_contracts[channel_address].get_first_owner() == self.eth_address
+        new_state: ChannelStateMessage = ChannelStateMessage(
+            channel_address=channel_address,
+            balance1=state.balance1 - amount_in_wei if im_am_first_owner else state.balance1 + amount_in_wei,
+            balance2=state.balance2 + amount_in_wei if im_am_first_owner else state.balance2 - amount_in_wei,
+            serial_number=state.serial_number + 1,
+            sig=Signature((0, "", ""))#TODO need to understnad all the keta with the signaure here
+        )
 
-        new_state.sig = Signature(0, sing(self.private_key, new_state.message_hash), '')
         self._channels[channel_address] = new_state
-        self._network.send_message(self._channels_other_party[channel_address], Message.NOTIFY_OF_CHANNEL, new_state, self.ip_address)
+        self._network.send_message(self._channels_other_party_ip[channel_address], Message.NOTIFY_OF_CHANNEL, new_state)
 
 
     def get_current_channel_state(self, channel_address: EthereumAddress) -> ChannelStateMessage:
