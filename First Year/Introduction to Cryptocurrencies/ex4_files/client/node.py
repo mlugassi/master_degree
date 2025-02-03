@@ -35,7 +35,7 @@ class Node(ABC):
         returns the address of the channel contract. Raises a ValueError exception if the amount given is not 
         positive or if it exceeds the funds controlled by the account.
         The IPAddress and ethereum address of the other party are assumed to be correct."""
-
+      
     @property
     @abstractmethod
     def eth_address(self) -> EthereumAddress:
