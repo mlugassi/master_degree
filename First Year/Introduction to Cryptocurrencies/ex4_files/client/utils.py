@@ -22,6 +22,11 @@ def to_32byte_hex(val: bytes) -> str:
     return Web3.to_hex(Web3.to_bytes(val).rjust(32, b'\0'))
 
 
+class state:
+    CLOSE = 0
+    OPEN = 1
+    APPEAL = 2
+
 @dataclass(frozen=True)
 class ChannelStateMessage:
     """The message represents the state of a payment channel. 
@@ -164,3 +169,15 @@ class Contract:
     def get_other_owner(self) -> EthereumAddress:
         """Returns the second owner of the contract."""
         return self._contract.functions.getOtherOwner().call()
+
+    def get_appeal_period_len(self) -> int:
+        return self._contract.functions.getAppealPeriod().call()
+
+    def get_channel_state(self) -> int:
+        return self._contract.functions.getChannelState().call()
+    
+    def get_balance1(self) -> int:
+        return self._contract.functions.getBalance1().call()
+    
+    def get_balance2(self) -> int:
+        return self._contract.functions.getBalance2().call()

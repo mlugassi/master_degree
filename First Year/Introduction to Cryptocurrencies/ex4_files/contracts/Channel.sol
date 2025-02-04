@@ -3,6 +3,14 @@ pragma solidity ^0.8.19;
 
 import "./ChannelInterface.sol";
 
+enum ChannelState {
+    CLOSE,
+    OPEN,
+    APPEALCLOSE
+} 
+
+
+
 contract Channel is ChannelI {
     // This contract will be deployed every time we establish a new payment channel between two participant.
     // The creator of the channel also injects funds that can be sent (and later possibly sent back) in this channel
@@ -12,40 +20,40 @@ contract Channel is ChannelI {
     uint public balance1;
     uint public balance2;
     uint public serial_num;
-
+    ChannelState public state;
 
     function getFirstOwner() external view returns (address) {
-        return this.first_owner;
+        return first_owner;
     }
 
     function getOtherOwner() external view returns (address) {
-        return this.other_owner;
+        return other_owner;
     }
 
     function  getAppealPeriodLen() external view returns (uint) {
-        return this.appeal_period_len;
+        return appeal_period_len;
     }
 
     function getMyBalance() external view returns (uint) {
-        if (msg.sender == this.first_owner) {
-            return this.balance1;
-        } else if (msg.sender == this.other_owner) {
-            return this.balance2;
+        if (msg.sender == first_owner) {
+            return balance1;
+        } else if (msg.sender == other_owner) {
+            return balance2;
         } else {
             return 0;
         }
     }
     
     function getBalance1() external view returns (uint) {
-        return this.balance1;
+        return balance1;
     }
 
     function getBalance2() external view returns (uint) {
-        return this.balance2;
+        return balance2;
     }
 
     function getSerialNum() external view returns (uint) {
-        return this.serial_num;
+        return serial_num;
     }
 
     function _verifySig(
@@ -79,11 +87,12 @@ contract Channel is ChannelI {
 
     constructor(address payable _otherOwner, uint _appealPeriodLen) payable {
         // Do not change the signature of this constructor! Implement the logic inside.
-        this.first_owner = msg.sender;
-        this.other_owner = _otherOwner;
-        this.appeal_period_len = _appealPeriodLen;
-        this.balance1 = msg.value;
-        this.balance2 = 0;
+        first_owner = payable(msg.sender);
+        other_owner = _otherOwner;
+        appeal_period_len = _appealPeriodLen;
+        balance1 = msg.value;
+        balance2 = 0;
+        state = ChannelState.OPEN;
     }
 
     // IMPLEMENT ADDITIONAL FUNCTIONS HERE
@@ -100,6 +109,7 @@ contract Channel is ChannelI {
         bytes32 s
     ) external {
         // TODO
+        state = ChannelState.APPEALCLOSE;
     }
 
     function appealClosure(
@@ -116,24 +126,28 @@ contract Channel is ChannelI {
     function withdrawFunds(address payable destAddress) external {
         // TODO
         require(msg.sender == destAddress, "Only the owner can withdraw funds");
-        require(destAddress == this.first_owner || destAddress == this.other_owner, "Invalid address");
+        require(destAddress == first_owner || destAddress == other_owner, "Invalid address");
 
-        if (destAddress == this.first_owner) {
-            require(this.balance1 > 0, "No funds to withdraw");
-            uint balance = this.balance1;
-            this.balance1 = 0;
-            (bool success, ) = destAddress.call{value: amount}("");
+        if (destAddress == first_owner) {
+            require(balance1 > 0, "No funds to withdraw");
+            uint balance = balance1;
+            balance1 = 0;
+            (bool success, ) = destAddress.call{value: balance}("");
             require(success, "Transfer failed");
-        } else if (destAddress == this.other_owner) {
-            require(this.balance2 > 0, "No funds to withdraw");
-            uint balance = this.balance2;
-            this.balance2 = 0;
-            (bool success, ) = destAddress.call{value: amount}("");
+        } else if (destAddress == other_owner) {
+            require(balance2 > 0, "No funds to withdraw");
+            uint balance = balance2;
+            balance2 = 0;
+            (bool success, ) = destAddress.call{value: balance}("");
             require(success, "Transfer failed");
         }
     }
 
     function getBalance() external view returns (uint) {
-        return this.balance1 + this.balance2
+        return balance1 + balance2;
+    }
+
+    function getChannelState() external view returns (ChannelState) {
+        return state;
     }
 }
