@@ -4,9 +4,9 @@ pragma solidity ^0.8.19;
 import "./ChannelInterface.sol";
 
 enum ChannelState {
-    CLOSE,
     OPEN,
-    APPEALCLOSE
+    APPEAL_PERIOD,
+    CLOSE
 } 
 
 
@@ -20,7 +20,8 @@ contract Channel is ChannelI {
     uint public balance1;
     uint public balance2;
     uint public serial_num;
-    ChannelState public state;
+    uint256 public close_time;
+    bool public got_close_req;
 
     function getFirstOwner() external view returns (address) {
         return first_owner;
@@ -30,32 +31,14 @@ contract Channel is ChannelI {
         return other_owner;
     }
 
-    function  getAppealPeriodLen() external view returns (uint) {
-        return appeal_period_len;
-    }
-
-    function getMyBalance() external view returns (uint) {
-        if (msg.sender == first_owner) {
-            return balance1;
-        } else if (msg.sender == other_owner) {
-            return balance2;
-        } else {
-            return 0;
-        }
-    }
-    
-    function getBalance1() external view returns (uint) {
-        return balance1;
-    }
-
-    function getBalance2() external view returns (uint) {
-        return balance2;
-    }
-
-    function getSerialNum() external view returns (uint) {
+    function getSerialNum() external view returns(uint) {
         return serial_num;
     }
 
+    function getAppealPeriodLen() external view returns(uint) {
+        return appeal_period_len;
+    }
+    
     function _verifySig(
         // Do not change this function!
         address contract_address,
@@ -92,7 +75,8 @@ contract Channel is ChannelI {
         appeal_period_len = _appealPeriodLen;
         balance1 = msg.value;
         balance2 = 0;
-        state = ChannelState.OPEN;
+        close_time = 0;
+        got_close_req = false;
     }
 
     // IMPLEMENT ADDITIONAL FUNCTIONS HERE
@@ -100,6 +84,24 @@ contract Channel is ChannelI {
     // Make sure to implement all of the functions from the interface ChannelI.
     // Define your own state variables, and any additional functions you may need in addition to that...
 
+
+    function getChannelState() external view returns (ChannelState) {
+        if (got_close_req == false) {
+            return ChannelState.OPEN;
+        } else if (block.timestamp <= appeal_period_len + close_time) {
+            return ChannelState.APPEAL_PERIOD;
+        } else {
+            return ChannelState.CLOSE;
+        }   
+    }
+
+    //Closes the channel based on a message by one party.
+    //If the serial number is 0, then the provided balance and signatures are ignored, and the channel is closed according to the initial split, 
+    //giving all the money to party 1.
+    //Closing the channel starts the appeal period.
+    // If any of the parameters are bad (signature,balance) the transaction reverts.
+    // Additionally, the transactions would revert if the party closing the channel isn't one of the two participants.
+    // _balance1 is the balance that belongs to the user that opened the channel. _balance2 is for the other user.
     function oneSidedClose(
         uint _balance1,
         uint _balance2,
@@ -108,10 +110,38 @@ contract Channel is ChannelI {
         bytes32 r,
         bytes32 s
     ) external {
-        // TODO
-        state = ChannelState.APPEALCLOSE;
+        require(msg.sender == first_owner || msg.sender == other_owner, "Invalid address");
+        require(this.getChannelState() == ChannelState.OPEN, "Channel is already closed");
+        require(serialNum >= 0, "Invalid serial number");
+
+        if (serialNum == 0) {
+            balance1 = balance1 + balance2;
+            balance2 = 0;
+            serial_num = 0;
+        } else {
+            if (msg.sender == first_owner) {
+                require(_verifySig(address(this), _balance1, _balance2, serialNum, v, r, s, other_owner), "Invalid signature");
+            } else {
+                require(_verifySig(address(this), _balance1, _balance2, serialNum, v, r, s, first_owner), "Invalid signature");
+            }
+            require((_balance1 + _balance2) == (balance1 + balance2), "Invalid balance");
+            require((_balance1 >= 0) && (_balance2 >= 0), "Invalid balance");
+
+            balance1 = _balance1;
+            balance2 = _balance2;
+            serial_num = serialNum;
+        }
+
+        close_time = block.timestamp;
+        got_close_req = true;
     }
 
+    // appeals a one_sided_close. should show a signed message with a higher serial number.
+    // _balance1 belongs to the creator of the contract. _balance2 is the money going to the other user.
+    // this function reverts upon any problem:
+    // It can only be called during the appeal period.
+    // only one of the parties participating in the channel can appeal.
+    // the serial number, balance, and signature must all be provided correctly.
     function appealClosure(
         uint _balance1,
         uint _balance2,
@@ -120,21 +150,41 @@ contract Channel is ChannelI {
         bytes32 r,
         bytes32 s
     ) external {
-        // TODO
+        require(msg.sender == first_owner || msg.sender == other_owner, "Invalid address");
+        require(this.getChannelState() == ChannelState.APPEAL_PERIOD, "Channel already closed or still open");
+        require(serialNum > serial_num, "Invalid serial number");
+
+        if (msg.sender == first_owner) {
+            require(_verifySig(address(this), _balance1, _balance2, serialNum, v, r, s, other_owner), "Invalid signature");
+        } else {
+            require(_verifySig(address(this), _balance1, _balance2, serialNum, v, r, s, first_owner), "Invalid signature");
+        }
+        require((_balance1 + _balance2) == (balance1 + balance2), "Invalid balance");
+        require((_balance1 >= 0) && (_balance2 >= 0), "Invalid balance");        
+
+        balance1 = _balance1;
+        balance2 = _balance2;
+        serial_num = serialNum;
+
+        close_time = block.timestamp;
+        got_close_req = true;    
     }
 
+    // Sends all of the money belonging to msg.sender to the destination address provided.
+    // this should only be possible if the channel is closed, and appeals are over.
+    // This transaction should revert upon any error.
     function withdrawFunds(address payable destAddress) external {
-        // TODO
-        require(msg.sender == destAddress, "Only the owner can withdraw funds");
-        require(destAddress == first_owner || destAddress == other_owner, "Invalid address");
 
-        if (destAddress == first_owner) {
+        require(msg.sender == first_owner || msg.sender == other_owner, "Invalid address");
+        require(this.getChannelState() == ChannelState.CLOSE, "Channel isn't closed yet");
+
+        if (msg.sender == first_owner) {
             require(balance1 > 0, "No funds to withdraw");
             uint balance = balance1;
             balance1 = 0;
             (bool success, ) = destAddress.call{value: balance}("");
             require(success, "Transfer failed");
-        } else if (destAddress == other_owner) {
+        } else if (msg.sender == other_owner) {
             require(balance2 > 0, "No funds to withdraw");
             uint balance = balance2;
             balance2 = 0;
@@ -143,11 +193,15 @@ contract Channel is ChannelI {
         }
     }
 
+    // returns the balance of the caller (the funds that this person can withdraw) if he is one of the channel participants.
+    // This function should revert if the channel is still open, or if the appeal period has not yet ended.
     function getBalance() external view returns (uint) {
-        return balance1 + balance2;
-    }
-
-    function getChannelState() external view returns (ChannelState) {
-        return state;
+        require(msg.sender == first_owner || msg.sender == other_owner, "Invalid address");
+        require(this.getChannelState() == ChannelState.CLOSE, "Channel isn't closed yet");
+        if (msg.sender == first_owner) {
+            return balance1;
+        } else {
+            return balance2;
+        }
     }
 }

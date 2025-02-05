@@ -21,11 +21,11 @@ CompiledContract = namedtuple('CompiledContract', ['bin', 'abi'])
 def to_32byte_hex(val: bytes) -> str:
     return Web3.to_hex(Web3.to_bytes(val).rjust(32, b'\0'))
 
+class State:
+    OPEN = 0
+    APPEAL_PERIOD = 1
+    CLOSE = 2
 
-class state:
-    CLOSE = 0
-    OPEN = 1
-    APPEAL = 2
 
 @dataclass(frozen=True)
 class ChannelStateMessage:
@@ -164,20 +164,55 @@ class Contract:
 
     def get_first_owner(self) -> EthereumAddress:
         """Returns the first owner of the contract."""
-        return self._contract.functions.getFirstOwner().call()
+        return self.call("getFirstOwner")
 
     def get_other_owner(self) -> EthereumAddress:
         """Returns the second owner of the contract."""
-        return self._contract.functions.getOtherOwner().call()
+        return self.call("getOtherOwner")
 
+    def get_channel_state(self) -> State:
+        channel_state = self.call("getChannelState")
+        if channel_state == 0:
+            return State.OPEN
+        if channel_state == 1:
+            return State.APPEAL_PERIOD
+        if channel_state == 2:
+            return State.CLOSE           
+    
+    def get_balance(self) -> int:
+        return self.call("getBalance")
+    
     def get_appeal_period_len(self) -> int:
-        return self._contract.functions.getAppealPeriod().call()
+        return self.call("getAppealPeriodLen")
+    
+    def get_serial_num(self) -> int:
+        return self.call("getSerialNum")
+        
+    def withdraw(self, user: HasEthAccount, dest_address: EthereumAddress) -> None:
+        self.transact(user, "withdrawFunds", (dest_address))
 
-    def get_channel_state(self) -> int:
-        return self._contract.functions.getChannelState().call()
-    
-    def get_balance1(self) -> int:
-        return self._contract.functions.getBalance1().call()
-    
-    def get_balance2(self) -> int:
-        return self._contract.functions.getBalance2().call()
+    def close_one_side(self, user: HasEthAccount, channel_state: ChannelStateMessage) -> bool:
+        try:
+            self.transact(user, "oneSidedClose", (channel_state.balance1, channel_state.balance2, channel_state.serial_number, 
+                                                channel_state.sig.v, channel_state.sig.r, channel_state.sig.s))
+            return True
+        except:
+            return False
+
+    def appeal_closure(self, user: HasEthAccount, channel_state: ChannelStateMessage) -> bool:
+        try:
+            self.transact(user, "appealClosure", (channel_state.balance1, channel_state.balance2, channel_state.serial_number, 
+                                                channel_state.sig.v, channel_state.sig.r, channel_state.sig.s))
+            return True
+        except:
+            return False
+
+
+class Channel:
+    def __init__(self, cur_state: ChannelStateMessage, pending_states: list[ChannelStateMessage], other_eth_address: EthereumAddress, other_ip:IPAddress, contract:Contract ) -> None:
+        self.cur_state: ChannelStateMessage = cur_state
+        self.pending_states: list[ChannelStateMessage] = pending_states
+        self.other_eth_address: EthereumAddress = other_eth_address
+        self.other_ip: IPAddress = other_ip
+        self.contract: Contract = contract
+

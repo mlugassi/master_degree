@@ -24,9 +24,16 @@ def start_hardhat() -> Generator[None, None, None]:
     # note that you need to use `module load hardhat/18` to have hardhat on cs machines.
     cmd = "command -v hardhat >/dev/null 2>&1 && hardhat node || npx hardhat node"
     logger.info(f"Running the command {cmd}")
-    process = subprocess.Popen(
-        cmd, shell=True,  preexec_fn=os.setsid, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # process = subprocess.Popen(
+    #     cmd, shell=True,  preexec_fn=os.setsid, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
+    process = subprocess.Popen(
+    cmd,
+    shell=True,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP  # Use this on Windows
+    )
     # Give the node some time to start up
 
     logger.info("Waiting for the Hardhat node to start")

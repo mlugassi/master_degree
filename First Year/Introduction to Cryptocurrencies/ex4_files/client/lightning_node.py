@@ -26,8 +26,9 @@ class LightningNode(Node):
         self._network = networking_interface
         self._ip_address = ip
         self._eth_address = eth_address
+        # self._eth_account = HasEthAccount(eth_address=eth_address, private_key=private_key)
         # Maintain an internal list/dict of channels.
-        self._channels: Dict[EthereumAddress, Dict] = {}
+        self._channels: Dict[EthereumAddress, Channel] = {}
 
     def get_list_of_channels(self) -> List[EthereumAddress]:
         """returns a list of channels managed by this node. The list will include all open channels,
@@ -43,29 +44,26 @@ class LightningNode(Node):
         if amount_in_wei <= 0 or amount_in_wei > self._w3.eth.get_balance(self.eth_address):
             raise ValueError("Amount must be positive.")
         
-        contract = self._w3.eth.contract(abi=self._contract_abi, bytecode=self._contract_bytecode)
-        tx_hash = contract.constructor(other_party_eth_address, APPEAL_PERIOD).transact({ 'from': self.eth_address, 'value': amount_in_wei })
-        tx_receipt = self._w3.eth.waitForTransactionReceipt(tx_hash)
-        contract_address = EthereumAddress(self._w3.toChecksumAddress(tx_receipt.contractAddress))
-
+        contract: Contract = Contract.deploy(self._w3, self._contract_abi, self._contract_bytecode, self, 
+                                   ctor_args=(other_party_eth_address, APPEAL_PERIOD), deploy_kwargs={ 'from': self.eth_address, 'value': amount_in_wei })
+        
         # Create an initial state: this node's balance is the funded amount, the other node's balance is 0.
         initial_state = sign(self._private_key, ChannelStateMessage(
-            channel_address=contract_address,
+            channel_address=contract.address,
             balance1=amount_in_wei,
             balance2=0,
             serial_number=0
         ))
         
-        self._channels[contract_address] = {"pending_states": [], 
-                                            "cur_state": initial_state, 
-                                            "other_eth_address": other_party_eth_address, 
-                                            "other_ip": other_party_ip_address, 
-                                            "contract": Contract(contract_address, self._contract_abi, self._w3) 
-                                            }
+        self._channels[contract.address] = Channel(pending_states=[],
+                                                   cur_state=initial_state,
+                                                   other_eth_address=other_party_eth_address,
+                                                   other_ip=other_party_ip_address,
+                                                   contract=contract)
+             
+        self._network.send_message(self._channels[contract.address].other_ip, Message.NOTIFY_OF_CHANNEL, (contract.address, self._ip_address))
 
-        self._network.send_message(self._channels[contract_address]['other_ip'], Message.NOTIFY_OF_CHANNEL, contract_address, self._ip_address)
-
-        return contract_address
+        return contract.address
 
     @property
     def eth_address(self) -> EthereumAddress:
@@ -81,16 +79,13 @@ class LightningNode(Node):
         """returns the private key of this node"""
         return self._private_key
 
-    def get_my_balance(self, channel_address: EthereumAddress):
-        i_first_owner = self._channels_contracts[channel_address].get_first_owner() == self.eth_address
-        cur_state = self.get_current_channel_state(channel_address) #TODO check if we should use that signed by both state or the last state the node knows
-        return cur_state.balance1 if i_first_owner else cur_state.balance2
+    def get_my_balance(self, channel_address: EthereumAddress) -> int:
+        cur_state = self.get_current_channel_state(channel_address)
+        if cur_state:
+            i_first_owner = self._channels_contracts[channel_address].get_first_owner() == self.eth_address
+            return cur_state.balance1 if i_first_owner else cur_state.balance2
+        return 0    
         
-    def get_other_party_balance(self, channel_address: EthereumAddress):
-        i_first_owner = self._channels_contracts[channel_address].get_first_owner() == self.eth_address
-        cur_state = self.get_current_channel_state(channel_address) #TODO check if we should use that signed by both state or the last state the node knows
-        return cur_state.balance2 if i_first_owner else cur_state.balance1
-    
     def send(self, channel_address: EthereumAddress, amount_in_wei: int) -> None:
         """sends money in one of the open channels this node is participating in and notifies the other node.
         This operation should not involve the blockchain.
@@ -100,13 +95,13 @@ class LightningNode(Node):
         if amount_in_wei <= 0:
             raise ValueError("Amount must be positive.")
         if channel_address not in self._channels:
-            raise ValueError("Channel does not exist.")
-        state = self.get_current_channel_state(channel_address) #TODO check if we should use that signed by both state or the last state the node knows
-        
+            raise ValueError("Channel does not exist.")      
         if self.get_my_balance(channel_address) < amount_in_wei:
             raise ValueError("Insufficient balance in channel.")
-        # Update dummy state: reduce our balance, increase counter, etc.
-        i_first_owner = self._channels_contracts[channel_address].get_first_owner() == self.eth_address
+
+        state = self.get_current_channel_state(channel_address)
+
+        i_first_owner = self.am_i_first_owner(channel_address)
         new_state: ChannelStateMessage = sign(self._private_key, ChannelStateMessage(
             channel_address=channel_address,
             balance1=state.balance1 - amount_in_wei if i_first_owner else state.balance1 + amount_in_wei,
@@ -114,9 +109,8 @@ class LightningNode(Node):
             serial_number=state.serial_number + 1,
         ))
 
-        self._channels[channel_address]["unverified_states"].append(new_state)
-        self._network.send_message(self._channels[channel_address]["other_ip"], Message.RECEIVE_FUNDS, new_state)
-        # self.notify_of_channel(channel_address, self._channels[channel_address]["other_ip"])
+        self._channels[channel_address].pending_states.append(new_state)
+        self._network.send_message(self._channels[channel_address].other_ip, Message.RECEIVE_FUNDS, new_state)
 
     def get_current_channel_state(self, channel_address: EthereumAddress) -> ChannelStateMessage:
         """
@@ -126,7 +120,7 @@ class LightningNode(Node):
         """
         if channel_address not in self._channels:
             raise Exception("Channel not found.")
-        return self._channels[channel_address]["cur_state"]
+        return self._channels[channel_address].cur_state # What happend if cur_state is None
     
     def close_channel(self, channel_address: EthereumAddress, channel_state: Optional[ChannelStateMessage] = None) -> bool:
         """
@@ -137,12 +131,18 @@ class LightningNode(Node):
         If the channel is already closed, throw an exception.
         The other node is *not* notified of the closed channel.
         If the transaction succeeds, this method returns True, otherwise False."""
+        
         if channel_address not in self._channels:
-            raise Exception("Channel not found or already closed.")
-        # For simulation, we simply remove the channel from our active list.
-        # If a channel_state is provided, we could simulate a cheating attempt.
-        del self._channels[channel_address]
-        return True
+            #raise Exception("Channel not found.") # TODO check if we should raise an exception or return False
+            return False
+        
+        if self._channels[channel_address].contract.get_channel_state() == State.CLOSED:
+            raise Exception("Channel already closed.")
+        
+        if channel_state is None:
+            channel_state = self.get_current_channel_state(channel_address)
+            
+        return self._channels[channel_address].contract.close_one_side(self, channel_state) #TODO there is a case that we will call that func with cur_state = None
     
     def appeal_closed_chan(self, contract_address: EthereumAddress) -> bool:
         """
@@ -151,9 +151,17 @@ class LightningNode(Node):
         If an appeal was sent, this method returns True. 
         If no appeal was sent (for any reason), this method returns False.
         """
-        # Dummy implementation: always return True if the channel was closed with an old state.
-        # In real life, would check timestamps and state serial numbers.
-        return True
+        if contract_address not in self._channels:
+            return False
+        
+        if self._channels[contract_address].contract.get_channel_state() != State.APPEAL_PERIOD:
+            return False
+
+        cur_state = self.get_current_channel_state(contract_address)
+        if cur_state and self._channels[contract_address].contract.get_serial_num() >= cur_state.serial_number:
+            return False
+        
+        return self._channels[contract_address].contract.appeal_closure(self, cur_state) #TODO there is a case that we will call that func with cur_state = None
     
     def withdraw_funds(self, contract_address: EthereumAddress) -> int:
         """allows the user to claim the funds from the channel.
@@ -165,11 +173,16 @@ class LightningNode(Node):
         # Here, we simulate by returning a dummy value and removing the channel.
         if contract_address not in self._channels:
             raise Exception("Channel not found or already withdrawn.")
-        state = self._channels[contract_address]
-        # Assume our balance is state.balance1; if zero, nothing to withdraw.
-        amount = state.balance1
+        
+        if self._channels[contract_address].contract.get_channel_state() != State.CLOSED:
+            raise Exception("Channel not closed.")
+        
+        my_balance =  self._channels[contract_address].contract.get_balance()
+        if my_balance > 0:
+            self._channels[contract_address].contract.withdraw(self, self.eth_address)
+    
         del self._channels[contract_address]
-        return amount
+        return my_balance
     
     def notify_of_channel(self, contract_address: EthereumAddress, other_party_ip_address: IPAddress) -> None:
         """This method is called to notify the node that another node created a channel in which it is participating.
@@ -185,31 +198,37 @@ class LightningNode(Node):
         contract = Contract(contract_address, self._contract_abi, self._w3)
         
         if contract_address in self._channels: # 1.
-            return  # already known
+            return None
         
         if contract.get_first_owner() == self.eth_address or contract.get_other_owner() != self.eth_address: # 2.
-            return
+            return None
         
-        if contract.get_channel_state() == state.CLOSED: # 3.
-            return
+        if contract.get_channel_state() == State.CLOSE: # 3.
+            return None
 
         if contract.get_appeal_period_len() < APPEAL_PERIOD: # 4.
-            return
+            return None
 
-        initial_state = sign(self._private_key, ChannelStateMessage(
-            channel_address=contract_address,
-            balance1=contract.get_balance1(),
-            balance2=0,
-            serial_number=0
-        ))            
+        # initial_state = sign(self._private_key, ChannelStateMessage(
+        #     channel_address=contract_address,
+        #     balance1=contract.get_balance1(),
+        #     balance2=0,
+        #     serial_number=0
+        # ))
 
-        self._channels[contract_address] = {"pending_states": [], 
-                                            "cur_state": initial_state, 
-                                            "other_eth_address": contract.get_first_owner(), 
-                                            "other_ip": other_party_ip_address, 
-                                            "contract": Contract(contract_address, self._contract_abi, self._w3) 
-                                            }
-        
+        self._channels[contract_address] = Channel(pending_states=[],
+                                                #    cur_state=initial_state,
+                                                   cur_state=None,
+                                                   other_eth_address=contract.get_first_owner(),
+                                                   other_ip=other_party_ip_address,
+                                                   contract=contract)
+
+    def get_pending_state(self, msg: ChannelStateMessage) -> Optional[ChannelStateMessage]:
+        for state in self._channels[msg.contract_address].pending_states:
+            if state.message_hash == msg.message_hash:
+                return state       
+        return None
+                                        
     def ack_transfer(self, msg: ChannelStateMessage) -> None:
         """This method receives a confirmation from another node about the transfer.
         The confirmation is supposed to be a signed message containing the last state sent to the other party,
@@ -217,25 +236,26 @@ class LightningNode(Node):
         and that does not strictly decrease the balance of this node, should be accepted here.
         If the channel in this message does not exist, or the message is not valid, it is simply ignored."""
         if msg.contract_address not in self._channels:
-            return
+            return None
         
-        if not validate_signature(msg, self._channels[msg.contract_address]["other_eth_address"]):
-            return
+        if not validate_signature(msg, self._channels[msg.contract_address].other_eth_address):
+            return None
+        
+        if msg.balance1 < 0 or msg.balance2 < 0:
+            return None
         
         cur_state = self.get_current_channel_state(msg.contract_address)
-        if cur_state.serial_number >= msg.serial_number:
-            return
-               
-        if msg.balance1 + msg.balance2 != cur_state.balance1 + cur_state.balance2:
-            return
+        if cur_state:
+            if cur_state.serial_number >= msg.serial_number:
+                return None
+                
+            if (msg.balance1 + msg.balance2) != (cur_state.balance1 + cur_state.balance2):
+                return None
         
-        for state in self._channels[msg.contract_address]["pending_states"]:
-            if state.message_hash == msg.message_hash:
-                break
-        else:
-            return
+        if self.get_pending_state(msg) is None:
+            return None
         
-        self._channels[msg.contract_address]["cur_state"] = msg
+        self._channels[msg.contract_address].cur_state = msg
         self.clean_unrelevant_states(msg.contract_address)
 
     def receive_funds(self, state_msg: ChannelStateMessage) -> None:
@@ -245,36 +265,41 @@ class LightningNode(Node):
         Otherwise, the same channel state message should be sent back, this time signed by the node as an ACK_TRANSFER message.
         """
         if state_msg.contract_address not in self._channels:
-            return
+            return None
         
-        if not validate_signature(state_msg, self._channels[state_msg.contract_address]["other_eth_address"]):
-            return
+        if not validate_signature(state_msg, self._channels[state_msg.contract_address].other_eth_address):
+            return None
         
+        if state_msg.balance1 < 0 or state_msg.balance2 < 0:
+            return None
+                        
         cur_state = self.get_current_channel_state(state_msg.contract_address)
-        
-        if state_msg.serial_number <= cur_state.serial_number:
-            return
+        if cur_state:
+            if state_msg.serial_number <= cur_state.serial_number:
+                return None
 
-        if (self.am_i_first_owner(cur_state.contract_address) and state_msg.balance1 < cur_state.balance1) or \
-            (not self.am_i_first_owner(cur_state.contract_address) and state_msg.balance2 < cur_state.balance2) or \
-            ((state_msg.balance1 + state_msg.balance2) != (cur_state.balance1 + cur_state.balance2)):
-            return
+            if (state_msg.balance1 + state_msg.balance2) != (cur_state.balance1 + cur_state.balance2):
+                return None
+            
+            if (self.am_i_first_owner(cur_state.contract_address) and state_msg.balance1 < cur_state.balance1) or \
+                (not self.am_i_first_owner(cur_state.contract_address) and state_msg.balance2 < cur_state.balance2):
+                return None
+
         
-        self._channels[cur_state.contract_address]["cur_state"] = state_msg
+        self._channels[cur_state.contract_address].cur_state = state_msg
         self.clean_unrelevant_states(cur_state.contract_address)
 
-        self._network.send_message(self._channels[state_msg.contract_address]["other_ip"], Message.ACK_TRANSFER, sign(ChannelStateMessage(
+        self._network.send_message(self._channels[state_msg.contract_address].other_ip, Message.ACK_TRANSFER, sign(ChannelStateMessage(
             contract_address=state_msg.contract_address,
             serial_number=state_msg.serial_number,
             balance1=state_msg.balance1,
             balance2=state_msg.balance2
         )))
 
-
     def am_i_first_owner(self, channel_address: EthereumAddress) -> bool:
         return self._channels_contracts[channel_address].get_first_owner() == self.eth_address
 
     def clean_unrelevant_states(self, channel_address: EthereumAddress) -> None:
-        for state in self._channels[channel_address]["pending_states"].copy():
+        for state in self._channels[channel_address].pending_states.copy():
             if state.serial_number <= self.get_current_channel_state(channel_address).serial_number:
-                self._channels[channel_address]["pending_states"].remove(state)
+                self._channels[channel_address].pending_states.remove(state)
