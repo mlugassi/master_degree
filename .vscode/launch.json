@@ -46,6 +46,19 @@
             ],
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}/First Year/Introduction to Cryptocurrencies/ex3_files"
-        }        
+        },
+        {
+            "name": "Python: pytest EX4",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "justMyCode": true,
+            "args": [
+                "--maxfail=1",
+                "--disable-warnings"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/First Year/Introduction to Cryptocurrencies/ex4_files"
+        }          
     ]
 }

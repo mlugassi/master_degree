@@ -22,7 +22,8 @@ def start_hardhat() -> Generator[None, None, None]:
     # the command to start the hardhat node. This checks first if hardhat is installed (e.g. as is on CS machines)
     # and if not, it uses npx to run the hardhat node
     # note that you need to use `module load hardhat/18` to have hardhat on cs machines.
-    cmd = "command -v hardhat >/dev/null 2>&1 && hardhat node || npx hardhat node"
+    #TODO reeanble before uploading the ex to module
+    cmd = ""#"command -v hardhat >/dev/null 2>&1 && hardhat node || npx hardhat node"
     logger.info(f"Running the command {cmd}")
     # process = subprocess.Popen(
     #     cmd, shell=True,  preexec_fn=os.setsid, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -44,9 +45,10 @@ def start_hardhat() -> Generator[None, None, None]:
         yield
     finally:
         logger.info("Terminating the Hardhat node")
+        #TODO reeanble before uploading the ex to module
         # Ensure that the process group is terminated
-        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-        process.wait()
+        # os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+        # process.wait()
 
 
 @pytest.fixture(scope="function", autouse=True)

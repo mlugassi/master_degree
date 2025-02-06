@@ -2,6 +2,7 @@
 pragma solidity ^0.8.19;
 
 import "./ChannelInterface.sol";
+import "node_modules/hardhat/console.sol"; //TODO remove before updload Ex to module
 
 enum ChannelState {
     OPEN,
@@ -110,6 +111,7 @@ contract Channel is ChannelI {
         bytes32 r,
         bytes32 s
     ) external {
+
         require(msg.sender == first_owner || msg.sender == other_owner, "Invalid address");
         require(this.getChannelState() == ChannelState.OPEN, "Channel is already closed");
         require(serialNum >= 0, "Invalid serial number");
@@ -196,6 +198,8 @@ contract Channel is ChannelI {
     // returns the balance of the caller (the funds that this person can withdraw) if he is one of the channel participants.
     // This function should revert if the channel is still open, or if the appeal period has not yet ended.
     function getBalance() external view returns (uint) {
+        // console.log("first_owner:", first_owner);
+        // console.log("other_owner:", other_owner);
         require(msg.sender == first_owner || msg.sender == other_owner, "Invalid address");
         require(this.getChannelState() == ChannelState.CLOSE, "Channel isn't closed yet");
         if (msg.sender == first_owner) {

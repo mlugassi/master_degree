@@ -150,8 +150,7 @@ class Contract:
         if func_args is None:
             func_args = ()
 
-        tx = self._contract.functions.__getattribute__(func_name)(
-            *func_args).build_transaction(transact_kwargs)
+        tx = self._contract.functions.__getattribute__(func_name)(*func_args).build_transaction(transact_kwargs)
         signed_tx = self._w3.eth.account.sign_transaction(
             tx, private_key=user.private_key)
         tx_hash = self._w3.eth.send_raw_transaction(signed_tx.raw_transaction)
@@ -179,8 +178,8 @@ class Contract:
         if channel_state == 2:
             return State.CLOSE           
     
-    def get_balance(self) -> int:
-        return self.call("getBalance")
+    def get_balance(self, my_address: EthereumAddress) -> int:
+        return self.call("getBalance", call_kwargs={ 'from': my_address })
     
     def get_appeal_period_len(self) -> int:
         return self.call("getAppealPeriodLen")
@@ -189,12 +188,19 @@ class Contract:
         return self.call("getSerialNum")
         
     def withdraw(self, user: HasEthAccount, dest_address: EthereumAddress) -> None:
-        self.transact(user, "withdrawFunds", (dest_address))
+        # self.transact(user, "withdrawFunds", func_args=tuple(Web3.to_checksum_address(dest_address))) #TODO check why Ofic func is not working for it (it spliting the address to 42 strings)
+        tx = self._contract.functions.__getattribute__("withdrawFunds")(dest_address).build_transaction({ 'from': user.eth_address,
+                                                                                                          'nonce': self._w3.eth.get_transaction_count(
+                user.eth_address) })
+        signed_tx = self._w3.eth.account.sign_transaction(
+            tx, private_key=user.private_key)
+        tx_hash = self._w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+        return self._w3.eth.wait_for_transaction_receipt(tx_hash)        
 
     def close_one_side(self, user: HasEthAccount, channel_state: ChannelStateMessage) -> bool:
         try:
             self.transact(user, "oneSidedClose", (channel_state.balance1, channel_state.balance2, channel_state.serial_number, 
-                                                channel_state.sig.v, channel_state.sig.r, channel_state.sig.s))
+                                                channel_state.sig[0], channel_state.sig[1], channel_state.sig[2]))
             return True
         except:
             return False
@@ -202,7 +208,7 @@ class Contract:
     def appeal_closure(self, user: HasEthAccount, channel_state: ChannelStateMessage) -> bool:
         try:
             self.transact(user, "appealClosure", (channel_state.balance1, channel_state.balance2, channel_state.serial_number, 
-                                                channel_state.sig.v, channel_state.sig.r, channel_state.sig.s))
+                                                channel_state.sig[0], channel_state.sig[1], channel_state.sig[2]))
             return True
         except:
             return False

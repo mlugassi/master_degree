@@ -1,0 +1,113 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "C:\\Users\\mlugassi\\OneDrive - Intel Corporation\\Documents\\Private\\Master Degree\\First Year\\Introduction to Cryptocurrencies\\ex4_files\\contracts\\Channel.sol": {
+      "lastModificationDate": 1738799561889,
+      "contentHash": "2039c0a43edfd3920e3f06a148a8f0e0",
+      "sourceName": "contracts/Channel.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./ChannelInterface.sol",
+        "hardhat/console.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.19"
+      ],
+      "artifacts": [
+        "Channel"
+      ]
+    },
+    "C:\\Users\\mlugassi\\OneDrive - Intel Corporation\\Documents\\Private\\Master Degree\\First Year\\Introduction to Cryptocurrencies\\ex4_files\\contracts\\ChannelInterface.sol": {
+      "lastModificationDate": 1738799081226,
+      "contentHash": "e6f5caf877fe21d8134e88c4a616d62e",
+      "sourceName": "contracts/ChannelInterface.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.19"
+      ],
+      "artifacts": [
+        "ChannelI"
+      ]
+    },
+    "C:\\Users\\mlugassi\\OneDrive - Intel Corporation\\Documents\\Private\\Master Degree\\First Year\\Introduction to Cryptocurrencies\\ex4_files\\node_modules\\hardhat\\console.sol": {
+      "lastModificationDate": 1738796803150,
+      "contentHash": "681c532e816169606d13a5fe8b475074",
+      "sourceName": "hardhat/console.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.4.22 <0.9.0"
+      ],
+      "artifacts": [
+        "console"
+      ]
+    }
+  }
+}
