@@ -3,14 +3,13 @@ pragma solidity ^0.8.19;
 
 import "./ChannelInterface.sol";
 import "node_modules/hardhat/console.sol"; //TODO remove before updload Ex to module
+// import "./node_modules/hardhat/console.sol"; //TODO remove before updload Ex to module
 
 enum ChannelState {
     OPEN,
     APPEAL_PERIOD,
     CLOSE
 } 
-
-
 
 contract Channel is ChannelI {
     // This contract will be deployed every time we establish a new payment channel between two participant.
@@ -89,7 +88,7 @@ contract Channel is ChannelI {
     function getChannelState() external view returns (ChannelState) {
         if (got_close_req == false) {
             return ChannelState.OPEN;
-        } else if (block.timestamp <= appeal_period_len + close_time) {
+        } else if (block.timestamp < (appeal_period_len + close_time)) {
             return ChannelState.APPEAL_PERIOD;
         } else {
             return ChannelState.CLOSE;

@@ -135,8 +135,8 @@ class LightningNode(Node):
             #raise Exception("Channel not found.") # TODO check if we should raise an exception or return False
             return False
         
-        if self._channels[channel_address].contract.get_channel_state() == State.CLOSE:
-            raise Exception("Channel already closed.")
+        if self._channels[channel_address].contract.get_channel_state() != State.OPEN:
+            raise Exception("You can only close an open channel.")
         
         if channel_state is None:
             channel_state = self.get_current_channel_state(channel_address)
