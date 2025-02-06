@@ -15,7 +15,7 @@ class Breakthrough:
             if y <= 1:
                 for x in range(self.board_size):
                     self.board[y][x] = Player.Black
-            elif y >= 6:
+            elif y >= self.board_size - 2:
                 for x in range(self.board_size):
                     self.board[y][x] = Player.White
         self.state = GameState.OnGoing
@@ -28,6 +28,13 @@ class Breakthrough:
                 return GameState.WhiteWon
             if self.board[self.board_size - 1][x] == Player.Black:
                 return GameState.BlackWon
+
+        if not any(Player.Black in row for row in self.board):
+            return GameState.WhiteWon
+
+        if not any(Player.White in row for row in self.board):
+            return GameState.BlackWon
+
         return GameState.OnGoing
 
     def valid_moves(self, pos):
@@ -112,7 +119,20 @@ class Breakthrough:
             for move in self.valid_moves((x, y)):
                 mx, my = move
                 pygame.draw.rect(self.screen, Colors.Green, (mx * self.tile_size, my * self.tile_size, self.tile_size, self.tile_size), 3)
-    
+    def draw_winner_text(self):
+        winner = "White" if self.state == GameState.WhiteWon else "Black"
+        text = self.font.render(f"{winner} Won!!", True, Colors.Green)
+        
+        # Calculate text size and position to center it
+        text_width, text_height = self.font.size(f"{winner} Won!!")
+        text_x = (self.window_size - text_width) // 2
+        text_y = (self.window_size - text_height) // 2
+        
+        # Create shadow effect by drawing the same text in black behind it
+        shadow_text = self.font.render(f"{winner} Won!!", True, Colors.Black)
+        self.screen.blit(shadow_text, (text_x + 2, text_y + 2))  # Shadow offset
+        self.screen.blit(text, (text_x, text_y))  # Main text
+
     def run(self):
         clock = pygame.time.Clock()
 

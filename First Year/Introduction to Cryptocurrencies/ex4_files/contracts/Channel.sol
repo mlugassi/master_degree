@@ -3,7 +3,6 @@ pragma solidity ^0.8.19;
 
 import "./ChannelInterface.sol";
 import "node_modules/hardhat/console.sol"; //TODO remove before updload Ex to module
-// import "./node_modules/hardhat/console.sol"; //TODO remove before updload Ex to module
 
 enum ChannelState {
     OPEN,

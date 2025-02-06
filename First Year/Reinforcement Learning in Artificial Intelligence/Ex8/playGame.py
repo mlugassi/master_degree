@@ -58,10 +58,10 @@ def refresh(game, screen):
     draw_selection(game, screen)
 
 def main():
-    game = Breakthrough()
+    game = Breakthrough(board_size=4)
     white_mcts_player = MCTSPlayer(Player.White)
     black_mcts_player = MCTSPlayer(Player.Black)
-    play_against_me = False
+    play_against_me = True
     
     
     pygame.init()
@@ -79,9 +79,9 @@ def main():
         if play_against_me and game.player == Player.White:
             move = my_move(game, screen, clock)
         elif not play_against_me and game.player == Player.White:
-            move = white_mcts_player.choose_move(game, num_iterations=1)
+            move = white_mcts_player.choose_move(game, num_iterations=2000)
         else:
-            move = black_mcts_player.choose_move(game, num_iterations=100)
+            move = black_mcts_player.choose_move(game, num_iterations=1000)
 
         game.make_move(move[0], move[1])
         

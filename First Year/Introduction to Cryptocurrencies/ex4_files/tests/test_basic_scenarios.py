@@ -181,3 +181,165 @@ def test_node_rejects_receive_message_of_unknown_channel(eth_tools: EthTools, al
     with pytest.raises(Exception):
         charlie.get_current_channel_state(chan.address)
     assert eth_tools.tx_count == 0
+#######################################################################
+
+def test_open_channel_again_after_close(eth_tools: EthTools, alice: Node, bob: Node) -> None:
+    """בוחן פתיחת ערוץ מחדש אחרי סגירה"""
+    alice_init_balance = eth_tools.get_balance(alice.eth_address)
+    bob_init_balance = eth_tools.get_balance(bob.eth_address)
+
+    # יצירת ערוץ
+    chan_address = alice.establish_channel(bob.eth_address, bob.ip_address, ONE_ETH)
+    
+    # סגירת הערוץ
+    alice.close_channel(chan_address)
+
+    # פתיחת ערוץ חדש
+    new_chan_address = alice.establish_channel(bob.eth_address, bob.ip_address, ONE_ETH)
+
+    # וידוא שהערוץ החדש נפתח בצורה תקינה
+    assert eth_tools.get_balance(new_chan_address) == ONE_ETH
+
+    # בדיקת יתרה לפני ואחרי
+    # assert alice_init_balance == eth_tools.get_balance(alice.eth_address)
+    assert bob_init_balance == eth_tools.get_balance(bob.eth_address)
+
+def test_send_different_amounts(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
+    """בודק שליחה של סכומים שונים בתוך הערוץ"""
+    alice_init_balance = eth_tools.get_balance(alice.eth_address)
+    bob_init_balance = eth_tools.get_balance(bob.eth_address)
+
+    amounts = [ONE_ETH, Web3.to_wei(2, 'ether'), Web3.to_wei(0.5, 'ether')]
+
+    for amount in amounts:
+        alice.send(chan.address, amount)
+        eth_tools.mine_blocks(1)
+
+    # וידוא שהיתרה של הערוץ השתנתה כמצופה
+    assert eth_tools.get_balance(chan.address) == 10 * ONE_ETH - sum(amounts)
+
+    # בדוק את היתרה של אליס ובוב
+    assert alice_init_balance == eth_tools.get_balance(alice.eth_address) + sum(amounts)
+    assert bob_init_balance == eth_tools.get_balance(bob.eth_address)
+
+def test_appeal_period(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
+    """בודק שהערעור על סגירת ערוץ במהלך תקופת הערעור עובד כראוי"""
+    eth_tools.start_tx_count()
+
+    # יצירת ערוץ
+    chan_address = alice.establish_channel(bob.eth_address, bob.ip_address, 5*ONE_ETH)
+    
+    # אליס שולחת כסף
+    alice.send(chan.address, ONE_ETH)
+    
+    # בוב סוגר את הערוץ באופן חד צדדי
+    bob.close_channel(chan.address)
+    
+    # חכים עד שהתקופה תסיים
+    eth_tools.mine_blocks(APPEAL_PERIOD)
+    
+    # בוב בודק אם יש צורך להגיש ערעור
+    assert bob.appeal_closed_chan(chan.address)
+    
+    # בוב מושך את כספו
+    assert bob.withdraw_funds(chan.address) == 1*ONE_ETH
+    assert alice.withdraw_funds(chan.address) == 4*ONE_ETH
+
+def test_invalid_signature(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
+    """בודק אם המערכת מזהה חתימה לא תקינה"""
+    alice.send(chan.address, ONE_ETH)
+    msg = alice.get_current_channel_state(chan.address)
+    
+    # שינוי לא תקין בחתימה
+    invalid_signature = (msg.serial_number, msg.balance1, msg.balance2)
+    
+    with pytest.raises(RevertException):
+        chan.transact(alice, "oneSidedClose", invalid_signature)
+
+def test_cancel_close_after_single_close(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
+    """בודק אם ניתן לבטל את הסגירה של הערוץ לאחר סגירה חד צדדית"""
+    eth_tools.start_tx_count()
+
+    # יצירת ערוץ
+    chan_address = alice.establish_channel(bob.eth_address, bob.ip_address, 5*ONE_ETH)
+
+    # אליס שולחת כסף
+    alice.send(chan.address, ONE_ETH)
+
+    # סגירה חד צדדית של אליס
+    alice.close_channel(chan.address)
+
+    # וידוא שהערוץ נסגר ושתקופת הערעור מתחילה
+    eth_tools.mine_blocks(APPEAL_PERIOD+2)
+    
+    with pytest.raises(Exception):
+        # אליס לא יכולה לסגור את הערוץ פעם נוספת
+        alice.close_channel(chan.address)
+
+def test_simple_transaction(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
+    """בדיקה פשוטה של שליחת עסקה בין שני צדדים"""
+    init_balance_alice = eth_tools.get_balance(alice.eth_address)
+    init_balance_bob = eth_tools.get_balance(bob.eth_address)
+    
+    # אליס שולחת עסקה לבוב
+    amount = Web3.to_wei(1, 'ether')
+    alice.send(chan.address, amount)
+    eth_tools.mine_blocks(1)
+
+    # בדוק את יתרת המשתמשים
+    assert eth_tools.get_balance(alice.eth_address) == init_balance_alice - amount
+    assert eth_tools.get_balance(bob.eth_address) == init_balance_bob + amount
+
+def test_single_party_close_with_appeal(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
+    """בדיקת סגירת ערוץ חד-צדדית עם אפשרות להגיש ערעור"""
+    # יצירת ערוץ ושליחת סכום
+    chan_address = alice.establish_channel(bob.eth_address, bob.ip_address, 5 * ONE_ETH)
+    alice.send(chan.address, Web3.to_wei(2, 'ether'))
+    
+    # אליס סוגרת את הערוץ חד-צדדית
+    alice.close_channel(chan.address)
+    
+    # אורך תקופת הערעור
+    eth_tools.mine_blocks(APPEAL_PERIOD)
+
+    # בדוק אם ניתן להגיש ערעור
+    assert alice.submit_appeal(chan_address) == True
+
+def test_channel_balance_after_close(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
+    """בדיקה של יתרת הערוץ לאחר סגירה"""
+    chan_address = alice.establish_channel(bob.eth_address, bob.ip_address, 3 * ONE_ETH)
+    
+    # שליחה של סכום ערוץ
+    alice.send(chan.address, Web3.to_wei(1, 'ether'))
+    
+    # סגירת הערוץ
+    alice.close_channel(chan_address)
+    
+    # וידוא שהיתרה של הערוץ מתעדכנת
+    assert eth_tools.get_balance(chan_address) == 2 * ONE_ETH
+
+def test_appeal_period_functionality(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
+    """בדיקה של תקופת הערעור אחרי סגירת ערוץ"""
+    # יצירת ערוץ
+    chan_address = alice.establish_channel(bob.eth_address, bob.ip_address, 5 * ONE_ETH)
+    
+    # סגירה חד-צדדית
+    alice.close_channel(chan_address)
+    
+    # חפירת בלוקים ותחילת תקופת הערעור
+    eth_tools.mine_blocks(APPEAL_PERIOD)
+
+    # הגשה של ערעור על סגירת הערוץ
+    assert alice.submit_appeal(chan_address) == True
+
+def test_invalid_signature_submission(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
+    """בדיקת חתימה לא תקינה בעת הגשת ערעור"""
+    chan_address = alice.establish_channel(bob.eth_address, bob.ip_address, ONE_ETH)
+    
+    # סגירת הערוץ
+    alice.close_channel(chan_address)
+    
+    # ניסיון לשלוח חתימה לא תקינה
+    invalid_signature = "invalid_signature_data"
+    with pytest.raises(RevertException):
+        alice.submit_appeal(chan_address, signature=invalid_signature)
