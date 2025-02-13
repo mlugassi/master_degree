@@ -108,7 +108,7 @@ def main():
         clock = None
 
     while game.state == GameState.OnGoing:
-        if play_against_me and game.player == Player.Black:
+        if play_against_me and game.player == Player.White:
             move = my_move(game, screen, clock, use_gui)
         elif not play_against_me and game.player == Player.Black:
             move = white_mcts_player.choose_move(game, num_iterations=iteration)

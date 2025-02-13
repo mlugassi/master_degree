@@ -3,6 +3,7 @@ import sys
 from pygame.locals import *
 import copy
 from breakthrough_types import *
+import random
 
 # Game class
 class Breakthrough:
@@ -19,7 +20,7 @@ class Breakthrough:
                 for x in range(self.board_size):
                     self.board[y][x] = Player.White
         self.state = GameState.OnGoing
-        self.player = Player.White
+        self.player = random.choice([Player.White, Player.Black])
         self.selection = None
 
     def get_state(self):
@@ -44,7 +45,7 @@ class Breakthrough:
         for dx in [MoveDirection.Left, MoveDirection.Forward, MoveDirection.Right]:
             nx, ny = x + dx.value, y - player
             if 0 <= nx < self.board_size and 0 <= ny < self.board_size and self.board[ny][nx] != player:
-                if dx.value != MoveDirection.Forward or self.board[ny][nx] == 0:
+                if dx != MoveDirection.Forward or self.board[ny][nx] == 0:
                     moves.append((nx, ny))
         return moves
 
