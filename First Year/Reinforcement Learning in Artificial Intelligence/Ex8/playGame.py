@@ -148,5 +148,5 @@ def main():
 
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    for _ in range(10):
+    for _ in range(5*1000):
         main()  # Change to False to run without GUI
