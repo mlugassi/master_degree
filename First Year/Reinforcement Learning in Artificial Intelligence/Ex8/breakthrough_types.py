@@ -1,3 +1,5 @@
+from enum import Enum
+
 class Colors:
     White = (255, 255, 255)
     Black = (0, 0, 0)
@@ -16,7 +18,7 @@ class GameState:
     BlackWon = Player.Black
     WhiteWon = Player.White
 
-class MoveDirection:
+class MoveDirection(Enum):
     Left = -1
     Forward = 0
     Right = 1

@@ -22,8 +22,9 @@ class MCTSNode:
         UCT = win_rate + exploration_weight * sqrt(log(parent_visit_count) / child_visit_count)
         """
         def uct_value(child):
-            exploitation = child.win_count / (child.visit_count + 1e-6)  # Win rate
+            exploitation =  1 - (child.win_count / (child.visit_count + 1e-6))  # Win rate
             exploration = exploration_weight * math.sqrt(math.log(self.visit_count + 1e-6)/ (child.visit_count + 1e-6))
+           # print(child, "exploitation:", exploitation, "exploitation:", exploitation)
             return exploitation + exploration
 
         return max(self.children.values(), key=uct_value)
@@ -31,7 +32,7 @@ class MCTSNode:
     def expand(self, move, game_state: Breakthrough):
         """Expand a new child for the given move and return the child node."""
         game_state.make_move(move[0], move[1])  # Apply the move to the game state
-        child_node = MCTSNode(player=self.player, parent=self, move=move, game_state=game_state)
+        child_node = MCTSNode(player=game_state.change_player(), parent=self, move=move, game_state=game_state.clone())
         self.children[move] = child_node
         self.untried_moves.remove(move)
         return child_node
@@ -46,4 +47,4 @@ class MCTSNode:
     def is_win(self, result):
         if result == self.player:
             return 1
-        return 0              
+        return 0

@@ -42,9 +42,9 @@ class Breakthrough:
         player = self.player
         moves = []
         for dx in [MoveDirection.Left, MoveDirection.Forward, MoveDirection.Right]:
-            nx, ny = x + dx, y - player
+            nx, ny = x + dx.value, y - player
             if 0 <= nx < self.board_size and 0 <= ny < self.board_size and self.board[ny][nx] != player:
-                if dx != MoveDirection.Forward or self.board[ny][nx] == 0:
+                if dx.value != MoveDirection.Forward or self.board[ny][nx] == 0:
                     moves.append((nx, ny))
         return moves
 
@@ -57,8 +57,8 @@ class Breakthrough:
         self.board[y0][x0] = 0
         self.board[y1][x1] = self.player
         self.state = self.get_state()
-        if self.state == GameState.OnGoing:
-            self.player = self.change_player()
+        # if self.state == GameState.OnGoing:
+        self.player = self.change_player()
         self.selection = None
 
     def unmake_move(self, start, end, captured):
@@ -73,17 +73,46 @@ class Breakthrough:
     def clone(self):
         return copy.deepcopy(self)
 
-    def encode(self):
-        encoded_state = []
-        for row in self.board:
-            encoded_state.extend(row)
-        encoded_state.append(self.player)
-        return encoded_state
+    def encode(self, print=None) -> list:
+        # encoded_state = []
+        # for row in self.board:
+        #     encoded_state.extend(row)
+        # encoded_state.append(self.player)
+        # return encoded_state
+        white_vector = [1 if player == Player.White else 0 for row in self.board for player in row]
+        black_vector = [1 if player == Player.Black else 0 for row in self.board for player in row]
+        return white_vector + black_vector + [self.player]
+    
+    def unencode(self, vector):
+        player = vector[-1]
+        board = [[0 for _ in range(self.board_size)] for _ in range(self.board_size)]
+        for i in range(len(vector) - 1):
+            if vector[i] != 0:
+                y = int(int(i % (self.board_size ** 2) ) / self.board_size)
+                x = int(int(i % (self.board_size ** 2) ) % self.board_size)
+                board[y][x] = Player.White if i < self.board_size ** 2 else Player.Black
 
-    def decode(self, action_index):
-        x0, y0 = divmod(action_index[0], self.board_size)
-        x1, y1 = divmod(action_index[1], self.board_size)
+        self.board,self.player = board, player
+
+    def decode(self, index, print=None):
+        if not (0 <= index < self.board_size ** 2 * 3):
+            raise ValueError("The number must be between 0 and ", self.board_size ** 2 * 3 - 1)
+
+        position = index // 3
+        x0 = position % self.board_size
+        y0 = position // self.board_size
+
+        direction = MoveDirection((index % 3) - 1)
+        x1, y1 = x0 + direction.value, y0 - self.player
+        # x0, y0 = divmod(action_index[0], self.board_size)
+        # x1, y1 = divmod(action_index[1], self.board_size)
         return ((x0, y0), (x1, y1))
+    
+    def undecode(self, From, To):
+        x0, y0 = From
+        direction = To[0] - x0
+        index = y0 * self.board_size * 3 + x0 * 3 + (direction + 1)
+        return index
 
     def status(self):
         winner = self.get_state()
@@ -119,6 +148,7 @@ class Breakthrough:
             for move in self.valid_moves((x, y)):
                 mx, my = move
                 pygame.draw.rect(self.screen, Colors.Green, (mx * self.tile_size, my * self.tile_size, self.tile_size, self.tile_size), 3)
+    
     def draw_winner_text(self):
         winner = "White" if self.state == GameState.WhiteWon else "Black"
         text = self.font.render(f"{winner} Won!!", True, Colors.Green)
@@ -167,7 +197,6 @@ class Breakthrough:
 
                     pygame.display.flip()
                     clock.tick(30)        
-
 
 # Main loop
 if __name__ == "__main__":

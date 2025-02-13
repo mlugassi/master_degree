@@ -33,6 +33,10 @@ class MCTSPlayer:
             node.backpropagate(result)
 
         # Choose the move with the highest visit count
+        print("####################################################")
+        for item in root.children.items():
+            print(item[0])
+            print("\t", item[1].win_count, item[1].visit_count, "=", item[1].win_count/item[1].visit_count)
         best_move = max(root.children.items(), key=lambda item: (item[1].win_count/item[1].visit_count))[0]
         return best_move
 
