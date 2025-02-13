@@ -28,7 +28,7 @@ def vectors_are_equals(vector1, vector2):
     return True
 
 breakthrough = Breakthrough(board_size=5)
-breakthrough.player = breakthrough.change_player()
+# breakthrough.player = breakthrough.change_player()
 
 board = random_board(breakthrough.board_size)
 breakthrough.board = board
@@ -53,7 +53,11 @@ else:
     print("Verctors aren't equals!")
 
 
-index = random.randint(0, breakthrough.board_size ** 2 *3)
+# index = random.randint(0, breakthrough.board_size ** 2 *3)
+breakthrough.player = -1
+index = 48
+From, To = breakthrough.decode(index)
+index = 27
 From, To = breakthrough.decode(index)
 res_index = breakthrough.undecode(From, To)
 if index == res_index:

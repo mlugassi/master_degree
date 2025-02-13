@@ -79,11 +79,11 @@ def export_game(records, winner, size):
 def main():
     # inputs
     board_size = 5
-    iteration = 5*1000
+    iteration = 1*1000
     exploration = 0.8
-    play_against_me = True
-    exit_on_finish = True
-    use_gui = True
+    play_against_me = False
+    exit_on_finish = False
+    use_gui = False
     record = True
     records = {}
     if play_against_me and not use_gui:
@@ -148,5 +148,5 @@ def main():
 
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    for _ in range(100):
+    for _ in range(10):
         main()  # Change to False to run without GUI
