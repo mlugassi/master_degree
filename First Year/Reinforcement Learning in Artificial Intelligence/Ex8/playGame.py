@@ -2,6 +2,8 @@ from breakthrough import Breakthrough
 from breakthrough_types import *
 from mcts_node import MCTSNode
 from mcts_player import MCTSPlayer
+from puct_player import PUCTPlayer
+from game_network import GameNetwork
 import pygame
 import sys
 from pygame.locals import *
@@ -81,17 +83,29 @@ def main():
     board_size = 5
     iteration = 1*1000
     exploration = 0.8
-    play_against_me = True
+    play_against_me = False
     exit_on_finish = False
     use_gui = True
     record = False
+    is_training = True
+    c_puct = 0.2
+    run_puct = True
     records = {}
     if play_against_me and not use_gui:
         exit("Error: You must Gui to play by yourself.")
 
     game = Breakthrough(board_size=board_size)
-    white_mcts_player = MCTSPlayer(Player.White, exploration_weight=exploration)
-    black_mcts_player = MCTSPlayer(Player.Black, exploration_weight=exploration)
+
+    if not run_puct:
+        white_player = MCTSPlayer(Player.White, exploration_weight=exploration)
+        black_player = MCTSPlayer(Player.Black, exploration_weight=exploration)
+    else:
+        white_network = GameNetwork(board_size)
+        if is_training:
+            black_network = white_network # GameNetwork(board_size)
+    
+        white_player = PUCTPlayer(white_network,c_puct, is_training)
+        black_player = PUCTPlayer(black_network, c_puct, is_training)
 
     if use_gui:
         pygame.init()
@@ -111,9 +125,9 @@ def main():
         if play_against_me and game.player == Player.White:
             move = my_move(game, screen, clock, use_gui)
         elif not play_against_me and game.player == Player.Black:
-            move = white_mcts_player.choose_move(game, num_iterations=iteration)
+            move = white_player.choose_move(game, num_iterations=iteration)
         else:
-            move = black_mcts_player.choose_move(game, num_iterations=iteration)
+            move = black_player.choose_move(game, num_iterations=iteration)
 
         if record:
             records["move_" + str(len(records))] = {
@@ -123,7 +137,9 @@ def main():
             }
 
         game.make_move(move[0], move[1])
-
+        
+        TIMER_EVENT = pygame.USEREVENT + 1
+        pygame.time.set_timer(TIMER_EVENT, 10000)  # 10 שניות
         if use_gui:
             refresh(game, screen)
             pygame.display.flip()

@@ -10,8 +10,10 @@ from sklearn.model_selection import train_test_split
 
 
 class GameNetwork(nn.Module):
-    def __init__(self, input_dim, num_actions):
+    def __init__(self, board_size):
         super(GameNetwork, self).__init__()
+        input_dim   = (board_size ** 2) * 2 + 1
+        num_actions = (board_size ** 2) * 3
         # encode board
         # player
         # 
@@ -182,8 +184,6 @@ if __name__ == "__main__":
     batch_size = 100
     epochs = 5000
     learning_rate = 0.00001
-    input_dim = (board_size**2) *2 + 1  # Example: number of features to represent the board
-    num_actions = (board_size**2) * 3  # Example: number of possible actions in the game
     
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -202,7 +202,7 @@ if __name__ == "__main__":
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     # Create the network
-    model = GameNetwork(input_dim, num_actions)
+    model = GameNetwork(board_size)
     
     # Load weights
     if os.path.isfile(f"game_network_weights_{board_size}.pth"):
@@ -216,8 +216,6 @@ if __name__ == "__main__":
 
     print("#################### MODEL CONFIGURATION ####################")
     print(f"Board Size: {board_size}")
-    print(f"Input Dim: {input_dim}")
-    print(f"Num Actions: {num_actions}")
     print(f"Batch Size: {batch_size}")
     print(f"Epochs: {epochs}")
     print(f"Learning Rate: {learning_rate}")
