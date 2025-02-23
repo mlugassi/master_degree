@@ -81,10 +81,10 @@ def main():
     board_size = 5
     iteration = 1*1000
     exploration = 0.8
-    play_against_me = False
+    play_against_me = True
     exit_on_finish = False
-    use_gui = False
-    record = True
+    use_gui = True
+    record = False
     records = {}
     if play_against_me and not use_gui:
         exit("Error: You must Gui to play by yourself.")

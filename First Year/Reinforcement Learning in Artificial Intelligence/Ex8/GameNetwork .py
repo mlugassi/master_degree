@@ -3,8 +3,11 @@ import torch.nn as nn
 import torch.optim as optim
 import os
 import json
-from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
+
+from torch.utils.data import Dataset, DataLoader
+from sklearn.model_selection import train_test_split
+
 
 class GameNetwork(nn.Module):
     def __init__(self, input_dim, num_actions):
@@ -61,6 +64,7 @@ class GameNetwork(nn.Module):
         else:
             self.eval()  # Switch to evaluation mode
 
+
 class GameDataset(Dataset):
     def __init__(self, data):
         self.samples = []
@@ -91,19 +95,30 @@ def load_data(json_path):
 
     return games
 
-def train(model, dataloader, epochs=10, lr=0.001):
+
+def split_data(data, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1):
+    assert train_ratio + val_ratio + test_ratio == 1, "Ratios must sum to 1"
+
+    train_data, temp_data = train_test_split(data, test_size=(1 - train_ratio), shuffle=True)
+    val_data, test_data = train_test_split(temp_data, test_size=(test_ratio / (val_ratio + test_ratio)), shuffle=True)
+
+    return train_data, val_data, test_data
+
+
+def train(model, train_loader, val_loader, epochs, lr):
     optimizer = optim.Adam(model.parameters(), lr=lr)
-    loss_value_fn = nn.MSELoss()  # הפסד עבור חיזוי ערך המשחק
-    loss_policy_fn = nn.CrossEntropyLoss()  # הפסד עבור חיזוי המהלך
+    loss_value_fn = nn.MSELoss()
+    loss_policy_fn = nn.CrossEntropyLoss()
 
     for epoch in range(epochs):
+        model.train()  # Set to training mode
         total_loss = 0
-        for x, y_value, y_policy in dataloader:
+
+        for x, y_value, y_policy in train_loader:
             optimizer.zero_grad()
-            
             value_pred, policy_pred = model(x)
 
-            # חישוב הפסדים
+            # Compute losses
             loss_value = loss_value_fn(value_pred.squeeze(), y_value)
             loss_policy = loss_policy_fn(policy_pred, y_policy)
 
@@ -113,16 +128,78 @@ def train(model, dataloader, epochs=10, lr=0.001):
 
             total_loss += loss.item()
 
-        print(f"Epoch {epoch+1}, Loss: {total_loss / len(dataloader)}")
+        avg_train_loss = total_loss / len(train_loader)
 
-# Example usage of the network
+        # Compute validation metrics
+        avg_val_loss, val_policy_acc, val_value_acc = evaluate(model, val_loader, dataset_name="Validation")
+
+        print(f"Epoch {epoch+1}, Train Loss: {avg_train_loss:.6f}, Validation Loss: {avg_val_loss:.6f}, "
+              f"Policy Accuracy: {val_policy_acc:.2%}, Value Accuracy: {val_value_acc:.2%}")
+
+
+
+def evaluate(model, dataloader, dataset_name="Validation"):
+    model.eval()  # Set to evaluation mode
+    loss_value_fn = nn.MSELoss()
+    loss_policy_fn = nn.CrossEntropyLoss()
+    
+    total_loss = 0
+    correct_policy_predictions = 0
+    total_value_accuracy = 0
+    total_samples = 0
+
+    with torch.no_grad():
+        for x, y_value, y_policy in dataloader:
+            value_pred, policy_pred = model(x)
+
+            # Compute losses
+            loss_value = loss_value_fn(value_pred.squeeze(), y_value)
+            loss_policy = loss_policy_fn(policy_pred, y_policy)
+            loss = loss_value + loss_policy
+            total_loss += loss.item()
+
+            # Compute policy accuracy
+            predicted_moves = torch.argmax(policy_pred, dim=1)  # Get predicted move indices
+            true_moves = torch.argmax(y_policy, dim=1)  # Get true move indices
+            correct_policy_predictions += (predicted_moves == true_moves).sum().item()
+
+            # Compute value accuracy using 1 - |y_true - y_pred|
+            batch_value_accuracy = 1 - torch.abs(y_value - value_pred.squeeze())
+            total_value_accuracy += batch_value_accuracy.sum().item()  # Sum batch accuracy
+
+            total_samples += y_value.size(0)  # Batch size
+
+    avg_loss = total_loss / len(dataloader)
+    policy_accuracy = correct_policy_predictions / total_samples if total_samples > 0 else 0
+    value_accuracy = total_value_accuracy / total_samples if total_samples > 0 else 0  # Averaged over all samples
+  
+    return avg_loss, policy_accuracy, value_accuracy  # Return all metrics
+
+
+
 if __name__ == "__main__":
     board_size = 5
+    batch_size = 100
+    epochs = 5000
+    learning_rate = 0.00001
     input_dim = (board_size**2) *2 + 1  # Example: number of features to represent the board
     num_actions = (board_size**2) * 3  # Example: number of possible actions in the game
     
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
+    json_path = f"play_book_{board_size}.json"
+    data = load_data(json_path)
+    train_data, val_data, test_data = split_data(data)
+
+    # Create datasets
+    train_dataset = GameDataset(train_data)
+    val_dataset = GameDataset(val_data)
+    test_dataset = GameDataset(test_data)
+
+    # Create dataloaders
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     # Create the network
     model = GameNetwork(input_dim, num_actions)
@@ -131,51 +208,26 @@ if __name__ == "__main__":
     if os.path.isfile(f"game_network_weights_{board_size}.pth"):
         model.load_weights(f"game_network_weights_{board_size}.pth", train=True)
 
-    # קריאה לאימון
-    json_path = f"play_book_{board_size}.json"  # נתיב הקובץ שלך
-    data = load_data(json_path)
-    dataset = GameDataset(data)
-    dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
-
-    train(model, dataloader, epochs=1*10, lr=0.001)
-
-    # Create random input (for demonstration purposes)
-    # sample_input = torch.randn((1, input_dim))  # Input for a single example
-   
-    # state = [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
-        #    , "move": 21, "player": 1, "winner": 1}}
-
-    # state = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
-                #, "move": 51, "player": 1, "winner": 1},
-    
-    state = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1]
-            #  "move": 54, "player": 1, "winner": 1},
-    
-    #  "move": 51, "player": -1, "winner": -1}}
-    #state = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, -1]
-#                  "move": 48, "player": -1, "winner": -1}}
-    sample_input = torch.tensor(state, dtype=torch.float)
-    
-    # "move": 52, "player": -1, "winner": -1}
-
-
-    # Predict value and policy probabilities
-    value, policy = model(sample_input)
-
-    print("######## MODEL RESULTS ##########")
-    print(f"Predicted Value: {value.item():.6f}")
-    print("Move Idex:", torch.argmax(policy).item())
-    print("Move Probability:", torch.max(policy, dim=0).values.item())
-    # print("Predicted Policy Probabilities:", policy.detach().numpy())
-    print("Predicted Policy Probabilities:")
-    policy_np = policy.detach().numpy().flatten()  # Convert to NumPy array and flatten (if needed)
-    for idx, prob in enumerate(policy_np):
-        print(f"#{idx}: {prob:.15f}")
-    print("################################")
-
-    # Save weights
+    train(model, train_loader, val_loader, epochs=epochs, lr=learning_rate)
     model.save_weights(f"game_network_weights_{board_size}.pth")
 
+    train_avg_loss, train_policy_accuracy, train_value_accuracy = evaluate(model, train_loader, "Train")
+    test_avg_loss, test_policy_accuracy, test_value_accuracy = evaluate(model, test_loader, "Test")
 
+    print("#################### MODEL CONFIGURATION ####################")
+    print(f"Board Size: {board_size}")
+    print(f"Input Dim: {input_dim}")
+    print(f"Num Actions: {num_actions}")
+    print(f"Batch Size: {batch_size}")
+    print(f"Epochs: {epochs}")
+    print(f"Learning Rate: {learning_rate}")
+    print("#################### TRAIN RESULT ####################")
+    print(f"Average Loss: {train_avg_loss:.6f}")
+    print(f"Policy Accuracy: {train_policy_accuracy:.2%}")
+    print(f"Value Accuracy: {train_value_accuracy:.2%}")
+    print("#################### TEST RESULT ####################")
+    print(f"Average Loss: {test_avg_loss:.6f}")
+    print(f"Policy Accuracy: {test_policy_accuracy:.2%}")
+    print(f"Value Accuracy: {test_value_accuracy:.2%}")
+    print("#####################################################")
 
-    

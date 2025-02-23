@@ -8,6 +8,13 @@
             "program": "${file}",
             "console": "integratedTerminal"
         },
+       {
+            "name": "Breakthrough",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/First Year/Reinforcement Learning in Artificial Intelligence/Ex8/playGame.py",
+            "console": "integratedTerminal"
+        },        
         {
             "name": "Python: pytest EX1",
             "type": "python",
