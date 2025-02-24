@@ -7,16 +7,22 @@ import torch.nn.functional as F
 
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
+import sys
+from datetime import datetime
 
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+# logfile = open("ex8.log", "w")
+# print("Using log: ex8.log")
+logfile = sys.stdout
+
+device = "cpu" #torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}", file=logfile)
 
 class GameNetwork(nn.Module):
     def __init__(self, board_size):
         super(GameNetwork, self).__init__()
-        input_dim   = (board_size ** 2) * 2 + 1
+        input_dim = (board_size ** 2) * 2 + 1
         num_actions = (board_size ** 2) * 3
-        # encode board
-        # player
-        # 
 
         # Shared layers of the network
         self.shared_layers = nn.Sequential(
@@ -60,23 +66,23 @@ class GameNetwork(nn.Module):
 
     def load_weights(self, file_path, train=True):
         """Loads saved weights from a file"""
-        self.load_state_dict(torch.load(file_path))
+        self.load_state_dict(torch.load(file_path, map_location=device))
         if train:
             self.train()
         else:
-            self.eval()  # Switch to evaluation mode
+            self.eval()
 
 
 class GameDataset(Dataset):
     def __init__(self, data):
         self.samples = []
-        
+
         for line in data:
-            x = torch.tensor(line["state"] , dtype=torch.float)
+            x = torch.tensor(line["state"], dtype=torch.float)
             y_policy = F.one_hot(torch.tensor(line["move"], dtype=torch.long), num_classes=75).float()
             am_i_win = 1 if line["winner"] == line["player"] else 0
             y_value = torch.tensor(am_i_win, dtype=torch.float)
-            
+
             self.samples.append((x, y_value, y_policy))
 
     def __len__(self):
@@ -84,6 +90,7 @@ class GameDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.samples[idx]
+
 
 
 def load_data(json_path):
@@ -108,15 +115,19 @@ def split_data(data, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1):
 
 
 def train(model, train_loader, val_loader, epochs, lr):
+    model.to(device)  # Ensure model is on GPU/CPU
     optimizer = optim.Adam(model.parameters(), lr=lr)
     loss_value_fn = nn.MSELoss()
     loss_policy_fn = nn.CrossEntropyLoss()
 
     for epoch in range(epochs):
-        model.train()  # Set to training mode
+        model.train()
         total_loss = 0
 
         for x, y_value, y_policy in train_loader:
+            # Move inputs and targets to the GPU if available
+            x, y_value, y_policy = x.to(device), y_value.to(device), y_policy.to(device)
+
             optimizer.zero_grad()
             value_pred, policy_pred = model(x)
 
@@ -132,19 +143,17 @@ def train(model, train_loader, val_loader, epochs, lr):
 
         avg_train_loss = total_loss / len(train_loader)
 
-        # Compute validation metrics
-        avg_val_loss, val_policy_acc, val_value_acc = evaluate(model, val_loader, dataset_name="Validation")
+        # Evaluate the model
+        avg_val_loss, val_policy_acc, val_value_acc = evaluate(model, val_loader)
 
-        print(f"Epoch {epoch+1}, Train Loss: {avg_train_loss:.6f}, Validation Loss: {avg_val_loss:.6f}, "
-              f"Policy Accuracy: {val_policy_acc:.2%}, Value Accuracy: {val_value_acc:.2%}")
+        print(f"Epoch {epoch + 1}, Train Loss: {avg_train_loss:.6f}, Validation Loss: {avg_val_loss:.6f}, "
+              f"Policy Accuracy: {val_policy_acc:.2%}, Value Accuracy: {val_value_acc:.2%}", file=logfile)
 
-
-
-def evaluate(model, dataloader, dataset_name="Validation"):
-    model.eval()  # Set to evaluation mode
+def evaluate(model, dataloader):
+    model.eval()
     loss_value_fn = nn.MSELoss()
     loss_policy_fn = nn.CrossEntropyLoss()
-    
+
     total_loss = 0
     correct_policy_predictions = 0
     total_value_accuracy = 0
@@ -152,6 +161,9 @@ def evaluate(model, dataloader, dataset_name="Validation"):
 
     with torch.no_grad():
         for x, y_value, y_policy in dataloader:
+            # Move inputs and targets to the GPU if available
+            x, y_value, y_policy = x.to(device), y_value.to(device), y_policy.to(device)
+
             value_pred, policy_pred = model(x)
 
             # Compute losses
@@ -160,23 +172,22 @@ def evaluate(model, dataloader, dataset_name="Validation"):
             loss = loss_value + loss_policy
             total_loss += loss.item()
 
-            # Compute policy accuracy
-            predicted_moves = torch.argmax(policy_pred, dim=1)  # Get predicted move indices
-            true_moves = torch.argmax(y_policy, dim=1)  # Get true move indices
+            # Policy accuracy
+            predicted_moves = torch.argmax(policy_pred, dim=1)
+            true_moves = torch.argmax(y_policy, dim=1)
             correct_policy_predictions += (predicted_moves == true_moves).sum().item()
 
-            # Compute value accuracy using 1 - |y_true - y_pred|
+            # Value accuracy
             batch_value_accuracy = 1 - torch.abs(y_value - value_pred.squeeze())
-            total_value_accuracy += batch_value_accuracy.sum().item()  # Sum batch accuracy
+            total_value_accuracy += batch_value_accuracy.sum().item()
 
-            total_samples += y_value.size(0)  # Batch size
+            total_samples += y_value.size(0)
 
     avg_loss = total_loss / len(dataloader)
     policy_accuracy = correct_policy_predictions / total_samples if total_samples > 0 else 0
-    value_accuracy = total_value_accuracy / total_samples if total_samples > 0 else 0  # Averaged over all samples
-  
-    return avg_loss, policy_accuracy, value_accuracy  # Return all metrics
+    value_accuracy = total_value_accuracy / total_samples if total_samples > 0 else 0
 
+    return avg_loss, policy_accuracy, value_accuracy
 
 
 if __name__ == "__main__":
@@ -185,49 +196,51 @@ if __name__ == "__main__":
     batch_size = 100
     epochs = 5
     learning_rate = 0.00001
+
+    start_time = datetime.now()
+    print(f"Training started at: {start_time}")
     
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     json_path = f"play_book_{board_size}.json"
     data = load_data(json_path)
     train_data, val_data, test_data = split_data(data)
 
-    # Create datasets
     train_dataset = GameDataset(train_data)
     val_dataset = GameDataset(val_data)
     test_dataset = GameDataset(test_data)
 
-    # Create dataloaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-    # Create the network
     model = GameNetwork(board_size)
-    
-    # Load weights
+
     if os.path.isfile(f"game_network_weights_{board_size}.pth"):
         model.load_weights(f"game_network_weights_{board_size}.pth", train=True)
+
     for i in range(num_of_iteration):
-        print(f"#################### ITREATION #{i+1} ####################")
+        print(f"#################### ITERATION #{i + 1} ####################", file=logfile)
         train(model, train_loader, val_loader, epochs=epochs, lr=learning_rate)
         model.save_weights(f"game_network_weights_{board_size}.pth")
 
-    train_avg_loss, train_policy_accuracy, train_value_accuracy = evaluate(model, train_loader, "Train")
-    test_avg_loss, test_policy_accuracy, test_value_accuracy = evaluate(model, test_loader, "Test")
+    train_avg_loss, train_policy_accuracy, train_value_accuracy = evaluate(model, train_loader)
+    test_avg_loss, test_policy_accuracy, test_value_accuracy = evaluate(model, test_loader)
 
-    print("#################### MODEL CONFIGURATION ####################")
-    print(f"Board Size: {board_size}")
-    print(f"Batch Size: {batch_size}")
-    print(f"Epochs: {epochs}")
-    print(f"Learning Rate: {learning_rate}")
-    print("#################### TRAIN RESULT ####################")
-    print(f"Average Loss: {train_avg_loss:.6f}")
-    print(f"Policy Accuracy: {train_policy_accuracy:.2%}")
-    print(f"Value Accuracy: {train_value_accuracy:.2%}")
-    print("#################### TEST RESULT ####################")
-    print(f"Average Loss: {test_avg_loss:.6f}")
-    print(f"Policy Accuracy: {test_policy_accuracy:.2%}")
-    print(f"Value Accuracy: {test_value_accuracy:.2%}")
-    print("#####################################################")
+    print("#################### MODEL CONFIGURATION ####################", file=logfile)
+    print(f"Board Size: {board_size}", file=logfile)
+    print(f"Batch Size: {batch_size}", file=logfile)
+    print(f"Epochs: {epochs}", file=logfile)
+    print(f"Learning Rate: {learning_rate}", file=logfile)
+    print("#################### TRAIN RESULT ####################", file=logfile)
+    print(f"Average Loss: {train_avg_loss:.6f}", file=logfile)
+    print(f"Policy Accuracy: {train_policy_accuracy:.2%}", file=logfile)
+    print(f"Value Accuracy: {train_value_accuracy:.2%}", file=logfile)
+    print("#################### TEST RESULT ####################", file=logfile)
+    print(f"Average Loss: {test_avg_loss:.6f}", file=logfile)
+    print(f"Policy Accuracy: {test_policy_accuracy:.2%}", file=logfile)
+    print(f"Value Accuracy: {test_value_accuracy:.2%}", file=logfile)
+    print("#####################################################", file=logfile)
 
+    end_time = datetime.now()
+    print(f"Training completed at: {end_time}")
+    print(f"Total training time: {end_time - start_time}")
