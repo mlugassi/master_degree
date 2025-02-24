@@ -181,8 +181,9 @@ def evaluate(model, dataloader, dataset_name="Validation"):
 
 if __name__ == "__main__":
     board_size = 5
+    num_of_iteration = 20
     batch_size = 100
-    epochs = 5000
+    epochs = 5
     learning_rate = 0.00001
     
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -207,25 +208,26 @@ if __name__ == "__main__":
     # Load weights
     if os.path.isfile(f"game_network_weights_{board_size}.pth"):
         model.load_weights(f"game_network_weights_{board_size}.pth", train=True)
+    for i in range(num_of_iteration):
+        print(f"#################### ITREATION #{i+1} ####################")
+        train(model, train_loader, val_loader, epochs=epochs, lr=learning_rate)
+        model.save_weights(f"game_network_weights_{board_size}.pth")
 
-    train(model, train_loader, val_loader, epochs=epochs, lr=learning_rate)
-    model.save_weights(f"game_network_weights_{board_size}.pth")
+        train_avg_loss, train_policy_accuracy, train_value_accuracy = evaluate(model, train_loader, "Train")
+        test_avg_loss, test_policy_accuracy, test_value_accuracy = evaluate(model, test_loader, "Test")
 
-    train_avg_loss, train_policy_accuracy, train_value_accuracy = evaluate(model, train_loader, "Train")
-    test_avg_loss, test_policy_accuracy, test_value_accuracy = evaluate(model, test_loader, "Test")
-
-    print("#################### MODEL CONFIGURATION ####################")
-    print(f"Board Size: {board_size}")
-    print(f"Batch Size: {batch_size}")
-    print(f"Epochs: {epochs}")
-    print(f"Learning Rate: {learning_rate}")
-    print("#################### TRAIN RESULT ####################")
-    print(f"Average Loss: {train_avg_loss:.6f}")
-    print(f"Policy Accuracy: {train_policy_accuracy:.2%}")
-    print(f"Value Accuracy: {train_value_accuracy:.2%}")
-    print("#################### TEST RESULT ####################")
-    print(f"Average Loss: {test_avg_loss:.6f}")
-    print(f"Policy Accuracy: {test_policy_accuracy:.2%}")
-    print(f"Value Accuracy: {test_value_accuracy:.2%}")
-    print("#####################################################")
+        print(f"#################### MODEL CONFIGURATION #{i+1} ####################")
+        print(f"Board Size: {board_size}")
+        print(f"Batch Size: {batch_size}")
+        print(f"Epochs: {epochs}")
+        print(f"Learning Rate: {learning_rate}")
+        print("#################### TRAIN RESULT ####################")
+        print(f"Average Loss: {train_avg_loss:.6f}")
+        print(f"Policy Accuracy: {train_policy_accuracy:.2%}")
+        print(f"Value Accuracy: {train_value_accuracy:.2%}")
+        print("#################### TEST RESULT ####################")
+        print(f"Average Loss: {test_avg_loss:.6f}")
+        print(f"Policy Accuracy: {test_policy_accuracy:.2%}")
+        print(f"Value Accuracy: {test_value_accuracy:.2%}")
+        print("#####################################################")
 
