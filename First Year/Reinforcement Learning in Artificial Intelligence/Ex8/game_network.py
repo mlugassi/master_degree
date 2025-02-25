@@ -189,7 +189,7 @@ def evaluate(model, dataloader):
 
 if __name__ == "__main__":
     board_size = 5
-    num_of_iteration = 1
+    num_of_iteration = 200
     batch_size = 11000
     epochs = 5
     learning_rate = 0.001
@@ -219,7 +219,7 @@ if __name__ == "__main__":
     for i in range(num_of_iteration):
         print(f"#################### ITERATION #{i + 1} ####################", file=logfile)
         train(model, train_loader, val_loader, epochs=epochs, lr=learning_rate)
-        model.save_weights(f"game_network_weights_{board_size}_batch_{batch_size}.pth")
+        model.save_weights(f"game_network_weights_{board_size}_v{version}.pth")
 
     train_avg_loss, train_policy_accuracy, train_value_accuracy = evaluate(model, train_loader)
     test_avg_loss, test_policy_accuracy, test_value_accuracy = evaluate(model, test_loader)
