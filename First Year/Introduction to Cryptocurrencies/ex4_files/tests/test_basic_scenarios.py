@@ -2,6 +2,7 @@ from client.node import Node
 from testing_utils import ONE_ETH, EthTools, RevertException
 from client.utils import APPEAL_PERIOD, Contract, sign, ChannelStateMessage
 import pytest
+from client.lightning_node import *
 
 
 # here are tests for 3 basic scenarios. These also show how the work-flow with nodes proceeds.
@@ -251,7 +252,7 @@ def test_invalid_signature(eth_tools: EthTools, alice: Node, bob: Node, chan: Co
     # שינוי לא תקין בחתימה
     invalid_signature = (msg.serial_number, msg.balance1, msg.balance2)
     
-    assert chan.close_one_side(alice, invalid_signature) == False
+    assert close_one_side(chan, alice, invalid_signature) == False
 
 def test_cancel_close_after_single_close(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
     """בודק אם ניתן לבטל את הסגירה של הערוץ לאחר סגירה חד צדדית"""
@@ -287,16 +288,3 @@ def test_single_party_close_with_appeal(eth_tools: EthTools, alice: Node, bob: N
     # בדוק אם ניתן להגיש ערעור
     assert bob.appeal_closed_chan(chan.address) == False
 
-def test_invalid_signature_submission(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
-    """בדיקת חתימה לא תקינה בעת הגשת ערעור"""
-    chan_address = alice.establish_channel(bob.eth_address, bob.ip_address, ONE_ETH)
-    
-    # סגירת הערוץ
-    alice.close_channel(chan_address)
-    
-    # ניסיון לשלוח חתימה לא תקינה
-    invalid_signature = "invalid_signature_data"
-    state = alice.get_current_channel_state(chan.address)
-    state.balance1 = state.balance1 - ONE_ETH
-    state.balance2 = state.balance2 + ONE_ETH
-    assert alice.appeal_closed_chan(chan_address, state) == False

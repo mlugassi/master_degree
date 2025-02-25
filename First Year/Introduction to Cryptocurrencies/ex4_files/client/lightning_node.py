@@ -135,13 +135,13 @@ class LightningNode(Node):
             #raise Exception("Channel not found.") # TODO check if we should raise an exception or return False
             return False
         
-        if self._channels[channel_address].contract.get_channel_state() != State.OPEN:
+        if get_channel_state(self._channels[channel_address].contract) != State.OPEN:
             raise Exception("You can only close an open channel.")
         
         if channel_state is None:
             channel_state = self.get_current_channel_state(channel_address)
             
-        return self._channels[channel_address].contract.close_one_side(self, channel_state) #TODO there is a case that we will call that func with cur_state = None
+        return close_one_side(self._channels[channel_address].contract, self, channel_state) #TODO there is a case that we will call that func with cur_state = None
     
     def appeal_closed_chan(self, contract_address: EthereumAddress) -> bool:
         """
@@ -153,14 +153,14 @@ class LightningNode(Node):
         if contract_address not in self._channels:
             return False
         
-        if self._channels[contract_address].contract.get_channel_state() != State.APPEAL_PERIOD:
+        if get_channel_state(self._channels[contract_address].contract) != State.APPEAL_PERIOD:
             return False
 
         cur_state = self.get_current_channel_state(contract_address)
-        if cur_state and self._channels[contract_address].contract.get_serial_num() >= cur_state.serial_number:
+        if cur_state and get_serial_num(self._channels[contract_address].contract) >= cur_state.serial_number:
             return False
         
-        return self._channels[contract_address].contract.appeal_closure(self, cur_state) #TODO there is a case that we will call that func with cur_state = None
+        return appeal_closure(self._channels[contract_address].contract, self, cur_state) #TODO there is a case that we will call that func with cur_state = None
     
     def withdraw_funds(self, contract_address: EthereumAddress) -> int:
         """allows the user to claim the funds from the channel.
@@ -173,12 +173,12 @@ class LightningNode(Node):
         if contract_address not in self._channels:
             raise Exception("Channel not found or already withdrawn.")
         
-        if self._channels[contract_address].contract.get_channel_state() != State.CLOSE:
+        if get_channel_state(self._channels[contract_address].contract) != State.CLOSE:
             raise Exception("Channel not closed.")
         
-        my_balance =  self._channels[contract_address].contract.get_balance(self.eth_address)
+        my_balance =  get_balance(self._channels[contract_address].contract, self.eth_address)
         if my_balance > 0:
-            self._channels[contract_address].contract.withdraw(self, self.eth_address)
+            withdraw(self._channels[contract_address].contract, self, self.eth_address)
     
         del self._channels[contract_address]
         return my_balance
@@ -199,13 +199,13 @@ class LightningNode(Node):
         if contract_address in self._channels: # 1.
             return None
         
-        if contract.get_first_owner() == self.eth_address or contract.get_other_owner() != self.eth_address: # 2.
+        if get_first_owner(contract) == self.eth_address or get_other_owner(contract) != self.eth_address: # 2.
             return None
         
-        if contract.get_channel_state() == State.CLOSE: # 3.
+        if get_channel_state(contract) == State.CLOSE: # 3.
             return None
 
-        if contract.get_appeal_period_len() < APPEAL_PERIOD: # 4.
+        if get_appeal_period_len(contract) < APPEAL_PERIOD: # 4.
             return None
 
         # initial_state = sign(self._private_key, ChannelStateMessage(
@@ -218,7 +218,7 @@ class LightningNode(Node):
         self._channels[contract_address] = Channel(pending_states=[],
                                                 #    cur_state=initial_state,
                                                    cur_state=None,
-                                                   other_eth_address=contract.get_first_owner(),
+                                                   other_eth_address=get_first_owner(contract),
                                                    other_ip=other_party_ip_address,
                                                    contract=contract)
 
@@ -297,9 +297,77 @@ class LightningNode(Node):
         ),))
 
     def am_i_first_owner(self, channel_address: EthereumAddress) -> bool:
-        return self._channels[channel_address].contract.get_first_owner() == self.eth_address
+        return get_first_owner(self._channels[channel_address].contract) == self.eth_address
 
     def clean_unrelevant_states(self, channel_address: EthereumAddress) -> None:
         for state in self._channels[channel_address].pending_states.copy():
             if state.serial_number <= self.get_current_channel_state(channel_address).serial_number:
                 self._channels[channel_address].pending_states.remove(state)
+
+class Channel:
+    def __init__(self, cur_state: ChannelStateMessage, pending_states: list[ChannelStateMessage], other_eth_address: EthereumAddress, other_ip:IPAddress, contract:Contract ) -> None:
+        self.cur_state: ChannelStateMessage = cur_state
+        self.pending_states: list[ChannelStateMessage] = pending_states
+        self.other_eth_address: EthereumAddress = other_eth_address
+        self.other_ip: IPAddress = other_ip
+        self.contract: Contract = contract
+
+class State:
+    OPEN = 0
+    APPEAL_PERIOD = 1
+    CLOSE = 2
+
+
+
+def get_first_owner(contract) -> EthereumAddress:
+    """Returns the first owner of the contract."""
+    return contract.call("getFirstOwner")
+
+def get_other_owner(contract) -> EthereumAddress:
+    """Returns the second owner of the contract."""
+    return contract.call("getOtherOwner")
+
+def get_channel_state(contract) -> State:
+    channel_state = contract.call("getChannelState")
+    if channel_state == 0:
+        return State.OPEN
+    if channel_state == 1:
+        return State.APPEAL_PERIOD
+    if channel_state == 2:
+        return State.CLOSE           
+
+def get_balance(contract, my_address: EthereumAddress) -> int:
+    return contract.call("getBalance", call_kwargs={ 'from': my_address })
+
+def get_appeal_period_len(contract) -> int:
+    return contract.call("getAppealPeriodLen")
+
+def get_serial_num(contract) -> int:
+    return contract.call("getSerialNum")
+    
+def withdraw(contract, user: HasEthAccount, dest_address: EthereumAddress) -> None:
+    # contract.transact(user, "withdrawFunds", func_args=tuple(Web3.to_checksum_address(dest_address))) #TODO check why Ofic func is not working for it (it spliting the address to 42 strings)
+    tx = contract._contract.functions.__getattribute__("withdrawFunds")(dest_address).build_transaction({ 'from': user.eth_address,
+                                                                                                        'nonce': contract._w3.eth.get_transaction_count(
+            user.eth_address) })
+    signed_tx = contract._w3.eth.account.sign_transaction(
+        tx, private_key=user.private_key)
+    tx_hash = contract._w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+    return contract._w3.eth.wait_for_transaction_receipt(tx_hash)        
+
+def close_one_side(contract, user: HasEthAccount, channel_state: ChannelStateMessage) -> bool:
+    try:
+        contract.transact(user, "oneSidedClose", (channel_state.balance1, channel_state.balance2, channel_state.serial_number, 
+                                            channel_state.sig[0], channel_state.sig[1], channel_state.sig[2]))
+        return True
+    except:
+        return False
+
+def appeal_closure(contract, user: HasEthAccount, channel_state: ChannelStateMessage) -> bool:
+    try:
+        contract.transact(user, "appealClosure", (channel_state.balance1, channel_state.balance2, channel_state.serial_number, 
+                                            channel_state.sig[0], channel_state.sig[1], channel_state.sig[2]))
+        return True
+    except:
+        return False
+

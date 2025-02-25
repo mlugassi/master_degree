@@ -21,11 +21,6 @@ CompiledContract = namedtuple('CompiledContract', ['bin', 'abi'])
 def to_32byte_hex(val: bytes) -> str:
     return Web3.to_hex(Web3.to_bytes(val).rjust(32, b'\0'))
 
-class State:
-    OPEN = 0
-    APPEAL_PERIOD = 1
-    CLOSE = 2
-
 
 @dataclass(frozen=True)
 class ChannelStateMessage:
@@ -150,7 +145,8 @@ class Contract:
         if func_args is None:
             func_args = ()
 
-        tx = self._contract.functions.__getattribute__(func_name)(*func_args).build_transaction(transact_kwargs)
+        tx = self._contract.functions.__getattribute__(func_name)(
+            *func_args).build_transaction(transact_kwargs)
         signed_tx = self._w3.eth.account.sign_transaction(
             tx, private_key=user.private_key)
         tx_hash = self._w3.eth.send_raw_transaction(signed_tx.raw_transaction)
@@ -160,65 +156,3 @@ class Contract:
     def address(self) -> EthereumAddress:
         """The ethereum address of the contract."""
         return self._address
-
-    def get_first_owner(self) -> EthereumAddress:
-        """Returns the first owner of the contract."""
-        return self.call("getFirstOwner")
-
-    def get_other_owner(self) -> EthereumAddress:
-        """Returns the second owner of the contract."""
-        return self.call("getOtherOwner")
-
-    def get_channel_state(self) -> State:
-        channel_state = self.call("getChannelState")
-        if channel_state == 0:
-            return State.OPEN
-        if channel_state == 1:
-            return State.APPEAL_PERIOD
-        if channel_state == 2:
-            return State.CLOSE           
-    
-    def get_balance(self, my_address: EthereumAddress) -> int:
-        return self.call("getBalance", call_kwargs={ 'from': my_address })
-    
-    def get_appeal_period_len(self) -> int:
-        return self.call("getAppealPeriodLen")
-    
-    def get_serial_num(self) -> int:
-        return self.call("getSerialNum")
-        
-    def withdraw(self, user: HasEthAccount, dest_address: EthereumAddress) -> None:
-        # self.transact(user, "withdrawFunds", func_args=tuple(Web3.to_checksum_address(dest_address))) #TODO check why Ofic func is not working for it (it spliting the address to 42 strings)
-        tx = self._contract.functions.__getattribute__("withdrawFunds")(dest_address).build_transaction({ 'from': user.eth_address,
-                                                                                                          'nonce': self._w3.eth.get_transaction_count(
-                user.eth_address) })
-        signed_tx = self._w3.eth.account.sign_transaction(
-            tx, private_key=user.private_key)
-        tx_hash = self._w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-        return self._w3.eth.wait_for_transaction_receipt(tx_hash)        
-
-    def close_one_side(self, user: HasEthAccount, channel_state: ChannelStateMessage) -> bool:
-        try:
-            self.transact(user, "oneSidedClose", (channel_state.balance1, channel_state.balance2, channel_state.serial_number, 
-                                                channel_state.sig[0], channel_state.sig[1], channel_state.sig[2]))
-            return True
-        except:
-            return False
-
-    def appeal_closure(self, user: HasEthAccount, channel_state: ChannelStateMessage) -> bool:
-        try:
-            self.transact(user, "appealClosure", (channel_state.balance1, channel_state.balance2, channel_state.serial_number, 
-                                                channel_state.sig[0], channel_state.sig[1], channel_state.sig[2]))
-            return True
-        except:
-            return False
-
-
-class Channel:
-    def __init__(self, cur_state: ChannelStateMessage, pending_states: list[ChannelStateMessage], other_eth_address: EthereumAddress, other_ip:IPAddress, contract:Contract ) -> None:
-        self.cur_state: ChannelStateMessage = cur_state
-        self.pending_states: list[ChannelStateMessage] = pending_states
-        self.other_eth_address: EthereumAddress = other_eth_address
-        self.other_ip: IPAddress = other_ip
-        self.contract: Contract = contract
-
