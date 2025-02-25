@@ -11,7 +11,13 @@ class MCTSPlayer:
 
     def choose_move(self, game, num_iterations=1000):
         root = MCTSNode(player=self.player, game_state=game.clone())
-
+        blocking_move = self.get_blocking_move(game.clone())
+        wining_move = self.get_wining_move(game.clone())
+        if wining_move:
+            return wining_move
+        elif blocking_move:
+            return blocking_move
+        
         for _ in range(num_iterations):
             node = root
             game_state: Breakthrough = game.clone()
@@ -39,10 +45,39 @@ class MCTSPlayer:
         #     print("\t", item[1].win_count, item[1].visit_count, "=", item[1].win_count/item[1].visit_count)
         best_move = max(root.children.items(), key=lambda item: (item[1].win_count/item[1].visit_count))[0]
         return best_move
-
+    
+    def get_blocking_move(self, game_state: Breakthrough):
+        y = 1 if game_state.player == Player.Black else (game_state.board_size - 2)
+        other_player_wining_position = []
+        for x, p in enumerate(game_state.board[y]):
+            if p == game_state.get_other_player():
+                other_player_wining_position.append((x,y))
+        
+        for move in game_state.legal_moves():
+            for position in other_player_wining_position:
+                if move[1] == position:
+                    return move
+        return None
+    
+    def get_wining_move(self, game_state: Breakthrough):
+        game = game_state.clone()
+        for move in game.legal_moves():
+            game.make_move(move[0], move[1])
+            if game.state == self.player:
+                return move
+            game.unmake_move(prev_board=game_state.board)
+        return None
+    
     def simulate(self, game_state: Breakthrough):
         """Simulate a random game to completion and return the result."""
         while game_state.state == GameState.OnGoing:
-            move = random.choice(game_state.legal_moves())
+            blocking_move = self.get_blocking_move(game_state.clone())
+            wining_move = self.get_wining_move(game_state.clone())
+            if wining_move:
+                move = wining_move
+            elif blocking_move:
+                move = blocking_move
+            else:
+                move = random.choice(game_state.legal_moves())
             game_state.make_move(move[0], move[1])
         return game_state.state

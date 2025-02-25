@@ -49,7 +49,7 @@ class Breakthrough:
                     moves.append((nx, ny))
         return moves
 
-    def change_player(self):
+    def get_other_player(self):
         return Player.Black if self.player == Player.White else Player.White
     
     def make_move(self, start, end):
@@ -59,15 +59,12 @@ class Breakthrough:
         self.board[y1][x1] = self.player
         self.state = self.get_state()
         # if self.state == GameState.OnGoing:
-        self.player = self.change_player()
+        self.player = self.get_other_player()
         self.selection = None
 
-    def unmake_move(self, start, end, captured):
-        x0, y0 = start
-        x1, y1 = end
-        self.board[y1][x1] = captured
-        self.board[y0][x0] = self.player
-        self.player = self.change_player()
+    def unmake_move(self, prev_board):
+        self.board = prev_board
+        self.player = self.get_other_player()
         self.state = GameState.OnGoing
         self.selection = None
 

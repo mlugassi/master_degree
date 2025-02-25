@@ -9,7 +9,7 @@ class PUCTNode:
         self.children = {}  # Maps actions to child nodes
         self.prior_prob = prior_prob
         self.visit_count = 0
-        self.total_value = 0.0
+        # self.total_value = 0.0
         self.q_value = 0.0
         self.move_idx = move_idx
 
@@ -36,13 +36,13 @@ class PUCTNode:
     def rand_child(self):
         action_prob = {action: child.prior_prob for action, child in self.children.items()}
         actions, probs = zip(*action_prob.items())
+        # print("action:", actions, "probs:", probs)
         selected_move = random.choices(actions, weights=probs, k=1)[0]
         return self.children[selected_move]        
 
     def backpropagate(self, value):
         """Updates the node's statistics based on the value of a simulation."""
         self.visit_count += 1
-        self.total_value += (1 / self.visit_count) * (value - self.q_value)
+        self.q_value += (1 / self.visit_count) * (value - self.q_value)
         if self.parent:
             self.parent.backpropagate(1 - value)
-   

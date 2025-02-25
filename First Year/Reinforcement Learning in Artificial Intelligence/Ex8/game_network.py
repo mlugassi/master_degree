@@ -66,6 +66,8 @@ class GameNetwork(nn.Module):
 
     def load_weights(self, file_path, train=True):
         """Loads saved weights from a file"""
+        if not device:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.load_state_dict(torch.load(file_path, map_location=device))
         if train:
             self.train()

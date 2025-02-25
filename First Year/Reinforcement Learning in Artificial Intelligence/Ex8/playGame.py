@@ -89,7 +89,7 @@ def main():
     record = False
     is_training = True
     c_puct = 0.2
-    run_puct = True
+    run_puct = False
     records = {}
     if play_against_me and not use_gui:
         exit("Error: You must Gui to play by yourself.")
@@ -101,6 +101,8 @@ def main():
         black_player = MCTSPlayer(Player.Black, exploration_weight=exploration)
     else:
         white_network = GameNetwork(board_size)
+        if os.path.isfile(f"game_network_weights_{board_size}_batch_11000.pth"):
+            white_network.load_weights(f"game_network_weights_{board_size}_batch_11000.pth", train=False)
         if is_training:
             black_network = white_network # GameNetwork(board_size)
     
@@ -135,7 +137,6 @@ def main():
                 "move": game.undecode(move[0], move[1]),
                 "player": game.player
             }
-
         game.make_move(move[0], move[1])
         
         TIMER_EVENT = pygame.USEREVENT + 1

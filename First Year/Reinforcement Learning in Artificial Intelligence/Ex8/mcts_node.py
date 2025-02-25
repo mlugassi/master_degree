@@ -32,7 +32,7 @@ class MCTSNode:
     def expand(self, move, game_state: Breakthrough):
         """Expand a new child for the given move and return the child node."""
         game_state.make_move(move[0], move[1])  # Apply the move to the game state
-        child_node = MCTSNode(player=game_state.change_player(), parent=self, move=move, game_state=game_state.clone())
+        child_node = MCTSNode(player=game_state.get_other_player(), parent=self, move=move, game_state=game_state.clone())
         self.children[move] = child_node
         self.untried_moves.remove(move)
         return child_node
