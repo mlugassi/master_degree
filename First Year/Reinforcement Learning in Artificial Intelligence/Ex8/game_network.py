@@ -11,16 +11,13 @@ import sys
 from datetime import datetime
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-# logfile = open("ex8.log", "w")
-# print("Using log: ex8.log")
 logfile = sys.stdout
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}", file=logfile)
-
 class GameNetwork(nn.Module):
-    def __init__(self, board_size):
+    def __init__(self, board_size, device=None):
         super(GameNetwork, self).__init__()
+        self.device = device if device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"Using device: {self.device}", file=logfile)
         input_dim = (board_size ** 2) * 2 + 1
         num_actions = (board_size ** 2) * 3
 
@@ -66,9 +63,7 @@ class GameNetwork(nn.Module):
 
     def load_weights(self, file_path, train=True):
         """Loads saved weights from a file"""
-        if not device:
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.load_state_dict(torch.load(file_path, map_location=device))
+        self.load_state_dict(torch.load(file_path, map_location=self.device))
         if train:
             self.train()
         else:
@@ -117,7 +112,7 @@ def split_data(data, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1):
 
 
 def train(model, train_loader, val_loader, epochs, lr):
-    model.to(device)  # Ensure model is on GPU/CPU
+    model.to(model.device)  # Ensure model is on GPU/CPU
     optimizer = optim.Adam(model.parameters(), lr=lr)
     loss_value_fn = nn.MSELoss()
     loss_policy_fn = nn.CrossEntropyLoss()
@@ -128,7 +123,7 @@ def train(model, train_loader, val_loader, epochs, lr):
 
         for x, y_value, y_policy in train_loader:
             # Move inputs and targets to the GPU if available
-            x, y_value, y_policy = x.to(device), y_value.to(device), y_policy.to(device)
+            x, y_value, y_policy = x.to(model.device), y_value.to(model.device), y_policy.to(model.device)
 
             optimizer.zero_grad()
             value_pred, policy_pred = model(x)
@@ -164,7 +159,7 @@ def evaluate(model, dataloader):
     with torch.no_grad():
         for x, y_value, y_policy in dataloader:
             # Move inputs and targets to the GPU if available
-            x, y_value, y_policy = x.to(device), y_value.to(device), y_policy.to(device)
+            x, y_value, y_policy = x.to(model.device), y_value.to(model.device), y_policy.to(model.device)
 
             value_pred, policy_pred = model(x)
 
@@ -194,16 +189,17 @@ def evaluate(model, dataloader):
 
 if __name__ == "__main__":
     board_size = 5
-    num_of_iteration = 2000
+    num_of_iteration = 200
     batch_size = 11000
     epochs = 5
     learning_rate = 0.001
-
+    version = "1"
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     start_time = datetime.now()
     print(f"Training started at: {start_time}")
     
 
-    json_path = f"play_book_{board_size}.json"
+    json_path = f"play_book_{board_size}_v{version}.json"
     data = load_data(json_path)
     train_data, val_data, test_data = split_data(data)
 
@@ -215,20 +211,22 @@ if __name__ == "__main__":
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-    model = GameNetwork(board_size)
+    model = GameNetwork(board_size, device)
 
-    if os.path.isfile(f"game_network_weights_{board_size}_batch_{batch_size}.pth"):
-        model.load_weights(f"game_network_weights_{board_size}_batch_{batch_size}.pth", train=True)
+    if os.path.isfile(f"game_network_weights_{board_size}_v{version}.pth"):
+        model.load_weights(f"game_network_weights_{board_size}_v{version}.pth", train=True)
 
     for i in range(num_of_iteration):
         print(f"#################### ITERATION #{i + 1} ####################", file=logfile)
         train(model, train_loader, val_loader, epochs=epochs, lr=learning_rate)
-        model.save_weights(f"game_network_weights_{board_size}_batch_{batch_size}.pth")
+        model.save_weights(f"game_network_weights_{board_size}_v{version}.pth")
 
     train_avg_loss, train_policy_accuracy, train_value_accuracy = evaluate(model, train_loader)
     test_avg_loss, test_policy_accuracy, test_value_accuracy = evaluate(model, test_loader)
 
     print("#################### MODEL CONFIGURATION ####################", file=logfile)
+    print(f"Version: v{version}", file=logfile)
+    print(f"Device: {device}", file=logfile)
     print(f"Board Size: {board_size}", file=logfile)
     print(f"Batch Size: {batch_size}", file=logfile)
     print(f"Iteration: {num_of_iteration}", file=logfile)
