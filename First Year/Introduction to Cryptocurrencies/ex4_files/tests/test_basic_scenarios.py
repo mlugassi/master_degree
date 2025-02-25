@@ -206,29 +206,27 @@ def test_open_channel_again_after_close(eth_tools: EthTools, alice: Node, bob: N
 
 def test_send_different_amounts(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
     """בודק שליחה של סכומים שונים בתוך הערוץ"""
+    contract_init_balance = eth_tools.get_balance(chan.address)
     alice_init_balance = eth_tools.get_balance(alice.eth_address)
+    alice_init_state_balance = alice.get_current_channel_state(chan.address).balance1
     bob_init_balance = eth_tools.get_balance(bob.eth_address)
 
-    amounts = [ONE_ETH, Web3.to_wei(2, 'ether'), Web3.to_wei(0.5, 'ether')]
+    amounts = [ONE_ETH, ONE_ETH * 2, int(ONE_ETH * 0.5)]
 
     for amount in amounts:
         alice.send(chan.address, amount)
         eth_tools.mine_blocks(1)
 
-    # וידוא שהיתרה של הערוץ השתנתה כמצופה
-    assert eth_tools.get_balance(chan.address) == 10 * ONE_ETH - sum(amounts)
-
-    # בדוק את היתרה של אליס ובוב
-    assert alice_init_balance == eth_tools.get_balance(alice.eth_address) + sum(amounts)
+    assert eth_tools.get_balance(chan.address) == contract_init_balance
+    assert alice_init_balance == eth_tools.get_balance(alice.eth_address)
     assert bob_init_balance == eth_tools.get_balance(bob.eth_address)
+    assert alice.get_current_channel_state(chan.address).balance1 == (alice_init_state_balance - sum(amounts))
+
 
 def test_appeal_period(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
     """בודק שהערעור על סגירת ערוץ במהלך תקופת הערעור עובד כראוי"""
     eth_tools.start_tx_count()
-
-    # יצירת ערוץ
-    chan_address = alice.establish_channel(bob.eth_address, bob.ip_address, 5*ONE_ETH)
-    
+    alice_init_state_balance = alice.get_current_channel_state(chan.address).balance1
     # אליס שולחת כסף
     alice.send(chan.address, ONE_ETH)
     
@@ -239,11 +237,11 @@ def test_appeal_period(eth_tools: EthTools, alice: Node, bob: Node, chan: Contra
     eth_tools.mine_blocks(APPEAL_PERIOD)
     
     # בוב בודק אם יש צורך להגיש ערעור
-    assert bob.appeal_closed_chan(chan.address)
+    assert bob.appeal_closed_chan(chan.address) == False
     
     # בוב מושך את כספו
     assert bob.withdraw_funds(chan.address) == 1*ONE_ETH
-    assert alice.withdraw_funds(chan.address) == 4*ONE_ETH
+    assert alice.withdraw_funds(chan.address) == alice_init_state_balance - 1*ONE_ETH
 
 def test_invalid_signature(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
     """בודק אם המערכת מזהה חתימה לא תקינה"""
@@ -253,8 +251,7 @@ def test_invalid_signature(eth_tools: EthTools, alice: Node, bob: Node, chan: Co
     # שינוי לא תקין בחתימה
     invalid_signature = (msg.serial_number, msg.balance1, msg.balance2)
     
-    with pytest.raises(RevertException):
-        chan.transact(alice, "oneSidedClose", invalid_signature)
+    assert chan.close_one_side(alice, invalid_signature) == False
 
 def test_cancel_close_after_single_close(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
     """בודק אם ניתן לבטל את הסגירה של הערוץ לאחר סגירה חד צדדית"""
@@ -276,61 +273,19 @@ def test_cancel_close_after_single_close(eth_tools: EthTools, alice: Node, bob: 
         # אליס לא יכולה לסגור את הערוץ פעם נוספת
         alice.close_channel(chan.address)
 
-def test_simple_transaction(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
-    """בדיקה פשוטה של שליחת עסקה בין שני צדדים"""
-    init_balance_alice = eth_tools.get_balance(alice.eth_address)
-    init_balance_bob = eth_tools.get_balance(bob.eth_address)
-    
-    # אליס שולחת עסקה לבוב
-    amount = Web3.to_wei(1, 'ether')
-    alice.send(chan.address, amount)
-    eth_tools.mine_blocks(1)
-
-    # בדוק את יתרת המשתמשים
-    assert eth_tools.get_balance(alice.eth_address) == init_balance_alice - amount
-    assert eth_tools.get_balance(bob.eth_address) == init_balance_bob + amount
-
 def test_single_party_close_with_appeal(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
     """בדיקת סגירת ערוץ חד-צדדית עם אפשרות להגיש ערעור"""
     # יצירת ערוץ ושליחת סכום
-    chan_address = alice.establish_channel(bob.eth_address, bob.ip_address, 5 * ONE_ETH)
-    alice.send(chan.address, Web3.to_wei(2, 'ether'))
+    alice.send(chan.address, 2*ONE_ETH)
     
     # אליס סוגרת את הערוץ חד-צדדית
     alice.close_channel(chan.address)
     
     # אורך תקופת הערעור
-    eth_tools.mine_blocks(APPEAL_PERIOD)
+    eth_tools.mine_blocks(APPEAL_PERIOD-1)
 
     # בדוק אם ניתן להגיש ערעור
-    assert alice.submit_appeal(chan_address) == True
-
-def test_channel_balance_after_close(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
-    """בדיקה של יתרת הערוץ לאחר סגירה"""
-    chan_address = alice.establish_channel(bob.eth_address, bob.ip_address, 3 * ONE_ETH)
-    
-    # שליחה של סכום ערוץ
-    alice.send(chan.address, Web3.to_wei(1, 'ether'))
-    
-    # סגירת הערוץ
-    alice.close_channel(chan_address)
-    
-    # וידוא שהיתרה של הערוץ מתעדכנת
-    assert eth_tools.get_balance(chan_address) == 2 * ONE_ETH
-
-def test_appeal_period_functionality(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
-    """בדיקה של תקופת הערעור אחרי סגירת ערוץ"""
-    # יצירת ערוץ
-    chan_address = alice.establish_channel(bob.eth_address, bob.ip_address, 5 * ONE_ETH)
-    
-    # סגירה חד-צדדית
-    alice.close_channel(chan_address)
-    
-    # חפירת בלוקים ותחילת תקופת הערעור
-    eth_tools.mine_blocks(APPEAL_PERIOD)
-
-    # הגשה של ערעור על סגירת הערוץ
-    assert alice.submit_appeal(chan_address) == True
+    assert bob.appeal_closed_chan(chan.address) == False
 
 def test_invalid_signature_submission(eth_tools: EthTools, alice: Node, bob: Node, chan: Contract) -> None:
     """בדיקת חתימה לא תקינה בעת הגשת ערעור"""
@@ -341,5 +296,7 @@ def test_invalid_signature_submission(eth_tools: EthTools, alice: Node, bob: Nod
     
     # ניסיון לשלוח חתימה לא תקינה
     invalid_signature = "invalid_signature_data"
-    with pytest.raises(RevertException):
-        alice.submit_appeal(chan_address, signature=invalid_signature)
+    state = alice.get_current_channel_state(chan.address)
+    state.balance1 = state.balance1 - ONE_ETH
+    state.balance2 = state.balance2 + ONE_ETH
+    assert alice.appeal_closed_chan(chan_address, state) == False

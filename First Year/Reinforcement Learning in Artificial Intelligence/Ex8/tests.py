@@ -65,7 +65,7 @@ if index == res_index:
 else:
     print("Indexes aren't equals!")
 
-breakthrough.player = breakthrough.change_player()
+breakthrough.player = breakthrough.get_other_player()
 index = random.randint(0, breakthrough.board_size ** 2 *3)
 From, To = breakthrough.decode(index)
 res_index = breakthrough.undecode(From, To)

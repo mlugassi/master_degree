@@ -61,11 +61,11 @@ class MCTSPlayer:
     
     def get_wining_move(self, game_state: Breakthrough):
         game = game_state.clone()
+        y = 1 if game_state.player == Player.White else (game_state.board_size - 2)
         for move in game.legal_moves():
-            game.make_move(move[0], move[1])
-            if game.state == self.player:
+            if move[0][1] == y:
                 return move
-            game.unmake_move(prev_board=game_state.board)
+
         return None
     
     def simulate(self, game_state: Breakthrough):
