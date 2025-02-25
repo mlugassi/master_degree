@@ -108,8 +108,8 @@ def load_data(json_path):
 def split_data(data, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1):
     assert train_ratio + val_ratio + test_ratio == 1, "Ratios must sum to 1"
 
-    train_data, temp_data = train_test_split(data, test_size=(1 - train_ratio), shuffle=True)
-    val_data, test_data = train_test_split(temp_data, test_size=(test_ratio / (val_ratio + test_ratio)), shuffle=True)
+    train_data, temp_data = train_test_split(data, test_size=(1 - train_ratio), shuffle=False)
+    val_data, test_data = train_test_split(temp_data, test_size=(test_ratio / (val_ratio + test_ratio)), shuffle=False)
 
     return train_data, val_data, test_data
 
@@ -192,7 +192,7 @@ def evaluate(model, dataloader):
 
 if __name__ == "__main__":
     board_size = 5
-    num_of_iteration = 200
+    num_of_iteration = 2000
     batch_size = 11000
     epochs = 5
     learning_rate = 0.001
