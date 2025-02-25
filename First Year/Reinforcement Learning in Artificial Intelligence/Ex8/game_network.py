@@ -15,7 +15,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 # print("Using log: ex8.log")
 logfile = sys.stdout
 
-device = "cpu" #torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}", file=logfile)
 
 class GameNetwork(nn.Module):
@@ -192,10 +192,10 @@ def evaluate(model, dataloader):
 
 if __name__ == "__main__":
     board_size = 5
-    num_of_iteration = 20
-    batch_size = 100
+    num_of_iteration = 200
+    batch_size = 11000
     epochs = 5
-    learning_rate = 0.00001
+    learning_rate = 0.001
 
     start_time = datetime.now()
     print(f"Training started at: {start_time}")
@@ -215,13 +215,13 @@ if __name__ == "__main__":
 
     model = GameNetwork(board_size)
 
-    if os.path.isfile(f"game_network_weights_{board_size}.pth"):
-        model.load_weights(f"game_network_weights_{board_size}.pth", train=True)
+    if os.path.isfile(f"game_network_weights_{board_size}_batch_{batch_size}.pth"):
+        model.load_weights(f"game_network_weights_{board_size}_batch_{batch_size}.pth", train=True)
 
     for i in range(num_of_iteration):
         print(f"#################### ITERATION #{i + 1} ####################", file=logfile)
         train(model, train_loader, val_loader, epochs=epochs, lr=learning_rate)
-        model.save_weights(f"game_network_weights_{board_size}.pth")
+        model.save_weights(f"game_network_weights_{board_size}_batch_{batch_size}.pth")
 
     train_avg_loss, train_policy_accuracy, train_value_accuracy = evaluate(model, train_loader)
     test_avg_loss, test_policy_accuracy, test_value_accuracy = evaluate(model, test_loader)
@@ -229,6 +229,7 @@ if __name__ == "__main__":
     print("#################### MODEL CONFIGURATION ####################", file=logfile)
     print(f"Board Size: {board_size}", file=logfile)
     print(f"Batch Size: {batch_size}", file=logfile)
+    print(f"Iteration: {num_of_iteration}", file=logfile)
     print(f"Epochs: {epochs}", file=logfile)
     print(f"Learning Rate: {learning_rate}", file=logfile)
     print("#################### TRAIN RESULT ####################", file=logfile)

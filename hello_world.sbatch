@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #SBATCH --partition main
-#SBATCH --time 1-00:00:00
+#SBATCH --time 2-00:00:00
 #SBATCH --job-name 'ex8'
-#SBATCH --output master_degree/job-%J.out
+#SBATCH --output job-%J.out
 #SBATCH --mail-user=michael19191@gmail.com
 #SBATCH --mail-type=ALL
-#SBATCH --gpus=1
+#SBATCH --gpus=3
 
 echo "Current Date:"
 date
