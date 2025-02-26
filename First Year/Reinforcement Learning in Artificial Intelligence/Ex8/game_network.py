@@ -11,7 +11,8 @@ import sys
 from datetime import datetime
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-logfile = sys.stdout
+# logfile = sys.stdout
+logfile = open("gameNetwork.log", "w")
 
 class GameNetwork(nn.Module):
     def __init__(self, board_size, device=None):
@@ -189,11 +190,12 @@ def evaluate(model, dataloader):
 
 if __name__ == "__main__":
     board_size = 5
-    num_of_iteration = 200
+    num_of_iteration = 2000
     batch_size = 11000
     epochs = 5
     learning_rate = 0.001
-    version = "1"
+    version = "2"
+    network_weights_name = f"game_network_weights_{board_size}_batch_{batch_size}_v{version}.pth"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     start_time = datetime.now()
     print(f"Training started at: {start_time}")
@@ -212,14 +214,19 @@ if __name__ == "__main__":
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     model = GameNetwork(board_size, device)
-
-    if os.path.isfile(f"game_network_weights_{board_size}_v{version}.pth"):
-        model.load_weights(f"game_network_weights_{board_size}_v{version}.pth", train=True)
+    
+    if os.path.isfile(network_weights_name):
+        model.load_weights(network_weights_name, train=True)
 
     for i in range(num_of_iteration):
         print(f"#################### ITERATION #{i + 1} ####################", file=logfile)
         train(model, train_loader, val_loader, epochs=epochs, lr=learning_rate)
-        model.save_weights(f"game_network_weights_{board_size}_v{version}.pth")
+        model.save_weights(network_weights_name)
+        if i % 1 == 0 and os.path.isfile(logfile.name):
+            f_name = logfile.name
+            logfile.close()
+            logfile = open(f_name, "a")
+
 
     train_avg_loss, train_policy_accuracy, train_value_accuracy = evaluate(model, train_loader)
     test_avg_loss, test_policy_accuracy, test_value_accuracy = evaluate(model, test_loader)

@@ -9,6 +9,8 @@ import sys
 from pygame.locals import *
 import json
 import os
+import time
+seconds = time.time()
 
 def my_move(game: Breakthrough, screen=None, clock=None, use_gui=True):
     if not use_gui:
@@ -70,7 +72,7 @@ def refresh(game, screen):
 def export_game(records, winner, size):
     for record in records:
         records[record]["winner"] = winner
-    with open(f"play_book_{size}.json", "a") as f:
+    with open(f"play_book_{size}_v2_{seconds}.json", "a") as f:
         json.dump(records, f)
         f.write("\n")
 
@@ -85,8 +87,8 @@ def main():
     exploration = 0.8
     play_against_me = False
     exit_on_finish = False
-    use_gui = True
-    record = False
+    use_gui = False
+    record = True
     is_training = True
     c_puct = 0.2
     run_puct = False
@@ -139,8 +141,6 @@ def main():
             }
         game.make_move(move[0], move[1])
         
-        TIMER_EVENT = pygame.USEREVENT + 1
-        pygame.time.set_timer(TIMER_EVENT, 10000)  # 10 שניות
         if use_gui:
             refresh(game, screen)
             pygame.display.flip()
@@ -165,5 +165,5 @@ def main():
 
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    for _ in range(5*1000):
+    for _ in range(100):
         main()  # Change to False to run without GUI
