@@ -87,12 +87,12 @@ class PlayerType:
     MCTS = 3
 
 
-def build_player(player_type: PlayerType, player: Player, board_size: int, exploration: int, train_model=False):
+def build_player(player_type: PlayerType, player: Player, board_size: int, batch_size:int, exploration: int, train_model=False):
     if player_type == PlayerType.USER:
         return None, None
     if player_type in [ PlayerType.PUCTv1, PlayerType.PUCTv2]:
         game_model = GameNetwork(board_size)
-        weights_name = f"game_network_weights_{board_size}_batch_11000_v{player_type}.pth"
+        weights_name = f"game_network_weights_{board_size}_batch_{batch_size}_v{player_type}.pth"
         if os.path.isfile(weights_name):
             game_model.load_weights(weights_name, train=False)
         return PUCTPlayer(game_model, exploration, training=train_model), game_model
@@ -102,13 +102,14 @@ def build_player(player_type: PlayerType, player: Player, board_size: int, explo
 def main():
     # inputs
     board_size  = 5
+    batch_size = 11000
     iteration   = 1*1000
     exploration = 0.8
     use_gui         = False
     train_model     = True
     export_game     = False
     white_player_type = PlayerType.PUCTv2
-    black_player_type = PlayerType.PUCTv1
+    black_player_type = PlayerType.PUCTv2
 
 
     if (white_player_type == PlayerType.USER or black_player_type == PlayerType.USER) and not use_gui:
@@ -117,8 +118,8 @@ def main():
     records = {}
     game = Breakthrough(board_size=board_size)
 
-    white_player, white_player_model = build_player(white_player_type, Player.White, board_size, exploration, train_model)
-    black_player, black_player_model = build_player(black_player_type, Player.Black, board_size, exploration, train_model)
+    white_player, white_player_model = build_player(white_player_type, Player.White, board_size, batch_size, exploration, train_model)
+    black_player, black_player_model = build_player(black_player_type, Player.Black, board_size, batch_size, exploration, train_model)
 
     if use_gui:
         pygame.init()
@@ -174,9 +175,9 @@ def main():
 
     if train_model:
         if white_player_model:
-            train_game(white_player_model, records, game.state, f"game_network_weights_{board_size}_batch_11000_v{white_player_type}.pth")
+            train_game(white_player_model, records, game.state, f"game_network_weights_{board_size}_batch_{batch_size}_v{white_player_type}.pth")
         if black_player_model:
-            train_game(black_player_model, records, game.state, f"game_network_weights_{board_size}_batch_11000_v{black_player_type}.pth")
+            train_game(black_player_model, records, game.state, f"game_network_weights_{board_size}_batch_{batch_size}_v{black_player_type}.pth")
         records.clear()            
 
     if export_game:
