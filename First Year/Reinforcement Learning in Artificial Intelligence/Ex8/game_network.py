@@ -9,10 +9,12 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 import sys
 from datetime import datetime
+import time
+seconds = time.time()
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 # logfile = sys.stdout
-logfile = open("gameNetwork.log", "w")
+logfile = open(f"gameNetwork_{seconds}.log", "w")
 
 class GameNetwork(nn.Module):
     def __init__(self, board_size, device=None):
@@ -190,18 +192,18 @@ def evaluate(model, dataloader):
 
 if __name__ == "__main__":
     board_size = 5
-    num_of_iteration = 2000
-    batch_size = 11000
-    epochs = 5
+    num_of_iteration = 300
+    batch_size = 512
+    epochs = 100
     learning_rate = 0.001
-    version = "2"
+    version = "2.1"
     network_weights_name = f"game_network_weights_{board_size}_batch_{batch_size}_v{version}.pth"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     start_time = datetime.now()
     print(f"Training started at: {start_time}")
     
 
-    json_path = f"play_book_{board_size}_v{version}.json"
+    json_path = f"play_book_{board_size}_v{version.split('.')[0]}.json"
     data = load_data(json_path)
     train_data, val_data, test_data = split_data(data)
 
@@ -222,7 +224,7 @@ if __name__ == "__main__":
         print(f"#################### ITERATION #{i + 1} ####################", file=logfile)
         train(model, train_loader, val_loader, epochs=epochs, lr=learning_rate)
         model.save_weights(network_weights_name)
-        if i % 1 == 0 and os.path.isfile(logfile.name):
+        if i % 10 == 0 and os.path.isfile(logfile.name):
             f_name = logfile.name
             logfile.close()
             logfile = open(f_name, "a")
