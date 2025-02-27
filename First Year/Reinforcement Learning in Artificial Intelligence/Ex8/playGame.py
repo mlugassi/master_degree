@@ -3,7 +3,8 @@ from breakthrough_types import *
 from mcts_node import MCTSNode
 from mcts_player import MCTSPlayer
 from puct_player import PUCTPlayer
-from game_network import GameNetwork
+from game_network import GameNetwork, GameDataset
+import game_network
 import pygame
 import sys
 from pygame.locals import *
@@ -82,19 +83,22 @@ def export_game(records, winner, size):
 
 def main():
     # inputs
-    board_size = 5
-    iteration = 1*1000
+    board_size  = 5
+    iteration   = 1*1000
     exploration = 0.8
-    play_against_me = False
-    exit_on_finish = False
-    use_gui = False
-    record = True
-    is_training = True
-    c_puct = 0.2
-    run_puct = False
-    records = {}
+    c_puct      = 0.2
+    version     = 2
+
+    play_against_me = True
+    use_gui         = True
+    is_training     = True
+    run_puct        = True
+
     if play_against_me and not use_gui:
         exit("Error: You must Gui to play by yourself.")
+
+    records = {}
+    weights_name = f"game_network_weights_{board_size}_batch_11000_v{version}.pth"
 
     game = Breakthrough(board_size=board_size)
 
@@ -103,8 +107,8 @@ def main():
         black_player = MCTSPlayer(Player.Black, exploration_weight=exploration)
     else:
         white_network = GameNetwork(board_size)
-        if os.path.isfile(f"game_network_weights_{board_size}_batch_11000.pth"):
-            white_network.load_weights(f"game_network_weights_{board_size}_batch_11000.pth", train=False)
+        if os.path.isfile(weights_name):
+            white_network.load_weights(weights_name, train=False)
         if is_training:
             black_network = white_network # GameNetwork(board_size)
     
@@ -133,7 +137,7 @@ def main():
         else:
             move = black_player.choose_move(game, num_iterations=iteration)
 
-        if record:
+        if is_training:
             records["move_" + str(len(records))] = {
                 "state": game.encode(),
                 "move": game.undecode(move[0], move[1]),
@@ -146,10 +150,14 @@ def main():
             pygame.display.flip()
             clock.tick(30)
 
-    if record:
-        export_game(records, game.state, game.board_size)
+    if is_training:
+        if run_puct:
+            train_game(black_network, records, game.state, weights_name)
+            records.clear()
+        else:
+            export_game(records, game.state, game.board_size)
 
-    if use_gui and not exit_on_finish:
+    if use_gui:
         while True:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -162,6 +170,24 @@ def main():
             pygame.display.flip()
             clock.tick(30)
 
+def train_game(model:GameNetwork, records, winner, weights_name):
+    learning_rate = 0.0001
+    num_of_iteration = 1 
+    epochs = 100
+    records_list = [records[key] for key in records]
+    for record in records_list:
+        record["winner"] = winner
+    dataset = GameDataset(records_list)
+
+    from torch.utils.data import DataLoader
+
+    train_loader = DataLoader(dataset, batch_size=len(records), shuffle=False)
+
+    
+    for i in range(num_of_iteration):
+        print(f"#################### ITERATION #{i + 1} ####################")
+        game_network.train(model, train_loader, val_loader=None, epochs=epochs, lr=learning_rate)
+        model.save_weights(weights_name)
 
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))

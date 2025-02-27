@@ -142,10 +142,10 @@ def train(model, train_loader, val_loader, epochs, lr):
         avg_train_loss = total_loss / len(train_loader)
 
         # Evaluate the model
-        avg_val_loss, val_policy_acc, val_value_acc = evaluate(model, val_loader)
-
-        print(f"Epoch {epoch + 1}, Train Loss: {avg_train_loss:.6f}, Validation Loss: {avg_val_loss:.6f}, "
-              f"Policy Accuracy: {val_policy_acc:.2%}, Value Accuracy: {val_value_acc:.2%}", file=logfile)
+        if val_loader:
+            avg_val_loss, val_policy_acc, val_value_acc = evaluate(model, val_loader)
+            print(f"Epoch {epoch + 1}, Train Loss: {avg_train_loss:.6f}, Validation Loss: {avg_val_loss:.6f}, "
+                f"Policy Accuracy: {val_policy_acc:.2%}, Value Accuracy: {val_value_acc:.2%}", file=logfile)
 
 def evaluate(model, dataloader):
     model.eval()

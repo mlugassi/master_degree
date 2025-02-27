@@ -15,6 +15,13 @@ class PUCTPlayer:
     def choose_move(self, game, num_iterations=1000):
         root = PUCTNode(parent=None, prior_prob=1) #TODO Rafuz is wondering if it is needed :)
 
+        blocking_move = self.get_blocking_move(game.clone())
+        wining_move = self.get_wining_move(game.clone())
+        if wining_move:
+            return wining_move
+        elif blocking_move:
+            return blocking_move
+
         for _ in range(num_iterations):
             node = root
             game_state: Breakthrough = game.clone()
@@ -61,3 +68,25 @@ class PUCTPlayer:
         normalized_action_probs = dict(zip(action_probs.keys(), normalized_probs.tolist()))
 
         return normalized_action_probs
+    
+    def get_blocking_move(self, game_state: Breakthrough):
+        y = 1 if game_state.player == Player.Black else (game_state.board_size - 2)
+        other_player_wining_position = []
+        for x, p in enumerate(game_state.board[y]):
+            if p == game_state.get_other_player():
+                other_player_wining_position.append((x,y))
+        
+        for move in game_state.legal_moves():
+            for position in other_player_wining_position:
+                if move[1] == position:
+                    return move
+        return None
+    
+    def get_wining_move(self, game_state: Breakthrough):
+        game = game_state.clone()
+        y = 1 if game_state.player == Player.White else (game_state.board_size - 2)
+        for move in game.legal_moves():
+            if move[0][1] == y:
+                return move
+
+        return None
