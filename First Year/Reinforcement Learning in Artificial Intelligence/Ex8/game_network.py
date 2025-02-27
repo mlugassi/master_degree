@@ -13,8 +13,8 @@ import time
 seconds = time.time()
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-# logfile = sys.stdout
-logfile = open(f"gameNetwork_{seconds}.log", "w")
+logfile = sys.stdout
+# logfile = open(f"gameNetwork_{seconds}.log", "w")
 
 class GameNetwork(nn.Module):
     def __init__(self, board_size, device=None):
