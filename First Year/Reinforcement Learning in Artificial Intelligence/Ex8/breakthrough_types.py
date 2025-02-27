@@ -13,7 +13,7 @@ class Player:
     Black = -1
     White = 1
 
-class GameState:
+class GameState(Enum):
     OnGoing = 0
     BlackWon = Player.Black
     WhiteWon = Player.White

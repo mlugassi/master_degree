@@ -11,6 +11,8 @@ from pygame.locals import *
 import json
 import os
 import time
+from datetime import datetime
+
 seconds = time.time()
 
 def my_move(game: Breakthrough, screen=None, clock=None, use_gui=True):
@@ -80,7 +82,7 @@ def export_game(records, winner, size):
     # Load from file
     # with open("data.json", "r") as file:
     #     loaded_data = json.load(file)
-class PlayerType:
+class PlayerType(Enum):
     USER = 0
     PUCTv1 = 1
     PUCTv2 = 2
@@ -99,7 +101,7 @@ def build_player(player_type: PlayerType, player: Player, board_size: int, batch
     else:
         return MCTSPlayer(player, exploration_weight=exploration), None
 
-def main():
+def main(game_num: int):
     # inputs
     board_size  = 5
     batch_size = 11000
@@ -159,7 +161,7 @@ def main():
             refresh(game, screen)
             pygame.display.flip()
             clock.tick(30)
-
+    print(f"Game #{game_num} - White: {white_player_type.name}, Black: {black_player_type.name} - {game.state.name}")
     if use_gui:
         while True:
             for event in pygame.event.get():
@@ -175,9 +177,9 @@ def main():
 
     if train_model:
         if white_player_model:
-            train_game(white_player_model, records, game.state, f"game_network_weights_{board_size}_batch_{batch_size}_v{white_player_type}.pth")
+            train_game(white_player_model, records, game.state, f"game_network_weights_{board_size}_batch_{batch_size}_v{white_player_type.value}.pth")
         if black_player_model:
-            train_game(black_player_model, records, game.state, f"game_network_weights_{board_size}_batch_{batch_size}_v{black_player_type}.pth")
+            train_game(black_player_model, records, game.state, f"game_network_weights_{board_size}_batch_{batch_size}_v{black_player_type.value}.pth")
         records.clear()            
 
     if export_game:
@@ -200,5 +202,12 @@ def train_game(model:GameNetwork, records, winner, weights_name):
 
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    for _ in range(5):
-        main()  # Change to False to run without GUI
+    start_time = datetime.now()
+    print(f"Training started at: {start_time}")    
+    
+    for i in range(1000):
+        main(i + 1)  # Change to False to run without GUI
+
+    end_time = datetime.now()
+    print(f"Training completed at: {end_time}")
+    print(f"Total training time: {end_time - start_time}")    
