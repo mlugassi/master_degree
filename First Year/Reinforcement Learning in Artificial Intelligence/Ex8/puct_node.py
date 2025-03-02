@@ -28,7 +28,7 @@ class PUCTNode:
             scores = {}
             for action, child in parent.children.items():
                 u_value = c_puct * child.prior_prob * (math.sqrt(parent.visit_count) / (1 + child.visit_count))
-                scores[action] = child.q_value + u_value
+                scores[action] = (1 - child.q_value) + u_value
             return scores        
         scores = puct_score(self, c_puct)
         return self.children[max(scores, key=scores.get)]

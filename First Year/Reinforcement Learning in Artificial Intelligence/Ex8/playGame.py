@@ -86,7 +86,7 @@ class PlayerType(Enum):
     USER = 0
     PUCTv1 = 1
     PUCTv2 = 2
-    PUCTv2_2 = 2.2
+    PUCTv2_1 = 2.1
     MCTS = 3
 
 
@@ -114,8 +114,8 @@ def main(game_num: int):
     use_gui         = False
     train_model     = True
     export_game     = False
-    white_player_type = PlayerType.PUCTv2_2
-    black_player_type = PlayerType.PUCTv2_2
+    white_player_type = PlayerType.PUCTv2
+    black_player_type = PlayerType.PUCTv2
 
 
     if (white_player_type == PlayerType.USER or black_player_type == PlayerType.USER) and not use_gui:
@@ -212,7 +212,7 @@ if __name__ == "__main__":
     start_time = datetime.now()
     print(f"Training started at: {start_time}", flush=True)
     
-    for i in range(1000):
+    for i in range(10000):
         print(f"Time: {datetime.now()}, iteration: {i+1}", flush=True)
         main(i + 1)  # Change to False to run without GUI
 

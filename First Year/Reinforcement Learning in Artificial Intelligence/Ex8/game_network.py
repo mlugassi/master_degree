@@ -20,7 +20,7 @@ class GameNetwork(nn.Module):
     def __init__(self, board_size, device=None):
         super(GameNetwork, self).__init__()
         self.device = device if device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"Using device: {self.device}", file=logfile)
+        # print(f"Using device: {self.device}", file=logfile)
         input_dim = (board_size ** 2) * 2 + 1
         num_actions = (board_size ** 2) * 3
 
@@ -200,7 +200,7 @@ if __name__ == "__main__":
     batch_size = 512
     epochs = 100
     learning_rate = 0.001
-    version = "2.1"
+    version = "2"
     network_weights_name = f"game_network_weights_{board_size}_batch_{batch_size}_v{version}.pth"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     start_time = datetime.now()
