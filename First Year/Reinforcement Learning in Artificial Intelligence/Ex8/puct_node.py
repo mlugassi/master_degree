@@ -23,14 +23,14 @@ class PUCTNode:
                 self.children[action] = PUCTNode(parent=self, prior_prob=prob, move_idx=action)
 
     def best_child(self, c_puct):
-        def puct_score(self, c_puct):
+        def puct_score(parent, c_puct):
             """Computes the PUCT score for all child nodes."""
             scores = {}
-            for action, child in self.children.items():
-                u_value = c_puct * child.prior_prob * (math.sqrt(self.visit_count) / (1 + child.visit_count))
+            for action, child in parent.children.items():
+                u_value = c_puct * child.prior_prob * (math.sqrt(parent.visit_count) / (1 + child.visit_count))
                 scores[action] = child.q_value + u_value
             return scores        
-        scores = puct_score(c_puct)
+        scores = puct_score(self, c_puct)
         return self.children[max(scores, key=scores.get)]
 
     def rand_child(self):
