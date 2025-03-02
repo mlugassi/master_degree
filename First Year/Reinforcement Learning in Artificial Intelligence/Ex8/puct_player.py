@@ -16,12 +16,13 @@ class PUCTPlayer:
     def choose_move(self, game, num_iterations=1000):
         root = PUCTNode(parent=None, prior_prob=1) #TODO Rafuz is wondering if it is needed :)
 
-        blocking_move = self.get_blocking_move(game.clone())
-        wining_move = self.get_wining_move(game.clone())
-        if wining_move:
-            return wining_move
-        elif blocking_move:
-            return blocking_move
+        if self.training:
+            blocking_move = self.get_blocking_move(game.clone())
+            wining_move = self.get_wining_move(game.clone())
+            if wining_move:
+                return wining_move
+            elif blocking_move:
+                return blocking_move
 
         for _ in range(num_iterations):
             node = root
