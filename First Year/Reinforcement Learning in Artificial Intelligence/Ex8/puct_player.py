@@ -5,6 +5,7 @@ from breakthrough import Breakthrough
 from game_network import GameNetwork, GameDataset
 from puct_node import PUCTNode
 from breakthrough_types import *
+import random
 
 class PUCTPlayer:
     def __init__(self, model, c_puct, training):
@@ -43,7 +44,11 @@ class PUCTPlayer:
 
         # Choose action with the highest visit count
         action_visits = {action: child.visit_count for action, child in root.children.items()}
-        return game.decode(max(action_visits, key=action_visits.get))
+        if self.training:
+            chosen_action = random.choices(list(action_visits.keys()), weights=list(action_visits.values()), k=1)[0]
+        else:
+            chosen_action = max(action_visits, key=action_visits.get)
+        return game.decode(chosen_action)
 
     def evaluate_state(self, game_state: Breakthrough):
         """Evaluates the state using the neural network."""

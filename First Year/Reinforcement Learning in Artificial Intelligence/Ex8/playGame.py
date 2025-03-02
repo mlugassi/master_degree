@@ -72,7 +72,7 @@ def refresh(game, screen):
     draw_board(game, screen)
     draw_selection(game, screen)
 
-def export_game(records, winner, size):
+def export_game_records(records, winner, size):
     for record in records:
         records[record]["winner"] = winner
     with open(f"play_book_{size}_v2_{seconds}.json", "a") as f:
@@ -111,10 +111,10 @@ def main(game_num: int):
     batch_size = 512
     iteration   = 1*1000
     exploration = 0.8
-    use_gui         = True
+    use_gui         = False
     train_model     = True
     export_game     = False
-    white_player_type = PlayerType.USER
+    white_player_type = PlayerType.PUCTv2_2
     black_player_type = PlayerType.PUCTv2_2
 
 
@@ -165,7 +165,7 @@ def main(game_num: int):
             refresh(game, screen)
             pygame.display.flip()
             clock.tick(30)
-    print(f"Game #{game_num} - White: {white_player_type.name}, Black: {black_player_type.name} - {game.state.name}")
+    print(f"Game #{game_num} - White: {white_player_type.name}, Black: {black_player_type.name} - {game.state.name}, winning: {game.state}, steps: {len(records)}", flush=True)
     if use_gui:
         while True:
             for event in pygame.event.get():
@@ -182,12 +182,15 @@ def main(game_num: int):
     if train_model:
         if white_player_model:
             train_game(white_player_model, records, game.state, f"game_network_weights_{board_size}_batch_{batch_size}_v{white_player_type.value}.pth")
-        if black_player_model:
+        if black_player_model and white_player_type != black_player_type:
             train_game(black_player_model, records, game.state, f"game_network_weights_{board_size}_batch_{batch_size}_v{black_player_type.value}.pth")
-        records.clear()            
+        if not export_game:
+            records.clear()
 
     if export_game:
-        export_game(records, game.state, game.board_size)
+        export_game_records(records, game.state.value, game.board_size)
+        records.clear()
+
 
 
 def train_game(model:GameNetwork, records, winner, weights_name):
@@ -207,11 +210,12 @@ def train_game(model:GameNetwork, records, winner, weights_name):
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     start_time = datetime.now()
-    print(f"Training started at: {start_time}")    
+    print(f"Training started at: {start_time}", flush=True)
     
     for i in range(1000):
+        print(f"Time: {datetime.now()}, iteration: {i+1}", flush=True)
         main(i + 1)  # Change to False to run without GUI
 
     end_time = datetime.now()
-    print(f"Training completed at: {end_time}")
-    print(f"Total training time: {end_time - start_time}")    
+    print(f"Training completed at: {end_time}", flush=True)
+    print(f"Total training time: {end_time - start_time}", flush=True)    

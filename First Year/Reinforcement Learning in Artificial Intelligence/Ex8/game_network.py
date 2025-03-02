@@ -26,10 +26,14 @@ class GameNetwork(nn.Module):
 
         # Shared layers of the network
         self.shared_layers = nn.Sequential(
-            nn.Linear(input_dim, 128),
+            nn.Linear(input_dim, 256),
             nn.ReLU(),
-            nn.Linear(128, 256),
+            nn.Dropout(0.2),
+            nn.Linear(256, 512),
             nn.ReLU(),
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Dropout(0.2),
             nn.Linear(256, 128),
             nn.ReLU()
         )
