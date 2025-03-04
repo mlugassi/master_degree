@@ -7,6 +7,7 @@
 #SBATCH --mail-user=michael19191@gmail.com
 #SBATCH --mail-type=ALL
 #SBATCH --gpus=3
+#SBATCH --export=ALL,PYTHONUNBUFFERED=1
 
 echo "Current Date:"
 date
@@ -20,3 +21,4 @@ conda activate ex8
 
 # Run the Python script
 /home/michaellu/.conda/envs/ex8/bin/python3.11 "/home/michaellu/master_degree/First Year/Reinforcement Learning in Artificial Intelligence/Ex8/game_network.py"
+# /home/michaellu/.conda/envs/ex8/bin/python3.11 "/home/michaellu/master_degree/First Year/Reinforcement Learning in Artificial Intelligence/Ex8/playGame.py"
