@@ -114,8 +114,8 @@ def main(game_num: int):
     use_gui         = False
     train_model     = True
     export_game     = False
-    white_player_type = PlayerType.PUCTv2
-    black_player_type = PlayerType.PUCTv2
+    white_player_type = PlayerType.PUCTv2_1
+    black_player_type = PlayerType.PUCTv2_1
 
 
     if (white_player_type == PlayerType.USER or black_player_type == PlayerType.USER) and not use_gui:
@@ -218,4 +218,4 @@ if __name__ == "__main__":
 
     end_time = datetime.now()
     print(f"Training completed at: {end_time}", flush=True)
-    print(f"Total training time: {end_time - start_time}", flush=True)    
+    print(f"Total training time: {end_time - start_time}", flush=True)

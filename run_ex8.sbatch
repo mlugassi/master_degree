@@ -7,7 +7,7 @@
 #SBATCH --mail-user=michael19191@gmail.com
 #SBATCH --mail-type=ALL
 #SBATCH --gpus=3
-##SBATCH --export=ALL,PYTHONUNBUFFERED=1
+#SBATCH --export=ALL,PYTHONUNBUFFERED=1
 
 
 echo "Current Date:"
