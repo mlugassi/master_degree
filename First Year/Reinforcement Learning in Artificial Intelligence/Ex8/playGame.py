@@ -85,6 +85,7 @@ def export_game_records(records, winner, size):
 class PlayerType(Enum):
     USER = 0
     PUCTv1 = 1
+    PUCTv1_1 = 1.1
     PUCTv2 = 2
     PUCTv2_1 = 2.1 # policy
     PUCTv2_2 = 2.2 # policy + lr 0.001
@@ -116,8 +117,8 @@ def main(game_num: int):
     use_gui         = False
     train_model     = True
     export_game     = False
-    white_player_type = PlayerType.PUCTv2_3
-    black_player_type = PlayerType.PUCTv2_3
+    white_player_type = PlayerType.PUCTv1
+    black_player_type = PlayerType.PUCTv1_1
 
 
     if (white_player_type == PlayerType.USER or black_player_type == PlayerType.USER) and not use_gui:
