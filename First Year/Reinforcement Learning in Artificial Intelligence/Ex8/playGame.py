@@ -117,8 +117,8 @@ def main(game_num: int):
     use_gui         = False
     train_model     = True
     export_game     = False
-    white_player_type = PlayerType.PUCTv1
-    black_player_type = PlayerType.PUCTv1_1
+    white_player_type = PlayerType.PUCTv2_3
+    black_player_type = PlayerType.PUCTv2_3
 
 
     if (white_player_type == PlayerType.USER or black_player_type == PlayerType.USER) and not use_gui:
@@ -130,6 +130,10 @@ def main(game_num: int):
     white_player, white_player_model = build_player(white_player_type, Player.White, board_size, batch_size, exploration, train_model)
     black_player, black_player_model = build_player(black_player_type, Player.Black, board_size, batch_size, exploration, train_model)
     moves_counter = 0
+
+    total_loss = 0
+    total_policy_acc = 0
+    total_value_acc = 0
 
     if use_gui:
         pygame.init()
@@ -171,7 +175,6 @@ def main(game_num: int):
             refresh(game, screen)
             pygame.display.flip()
             clock.tick(30)
-    print(f"Game #{game_num} - White: {white_player_type.name}, Black: {black_player_type.name} - {game.state.name}, winning: {game.state}, steps: {moves_counter}", flush=True)
     if use_gui:
         while True:
             for event in pygame.event.get():
@@ -186,10 +189,15 @@ def main(game_num: int):
             clock.tick(30)
 
     if train_model:
-        if white_player_model:
-            train_game(white_player_model, records, game.state, f"game_network_weights_{board_size}_batch_{batch_size}_v{white_player_type.value}.pth")
-        if black_player_model and white_player_type != black_player_type:
-            train_game(black_player_model, records, game.state, f"game_network_weights_{board_size}_batch_{batch_size}_v{black_player_type.value}.pth")
+        game_data_loader = create_data_loader(records, game.state)
+        if white_player_model and "_" in white_player_type.name:
+            train_game(white_player_model, game_data_loader, f"game_network_weights_{board_size}_batch_{batch_size}_v{white_player_type.value}.pth")
+            total_loss, total_policy_acc, total_value_acc = evaluate_game(game_num, white_player_model, game_data_loader, white_player_type, game.state, total_loss, total_policy_acc, total_value_acc)
+
+        if black_player_model and "_" in  black_player_type.name:
+            train_game(black_player_model, game_data_loader, f"game_network_weights_{board_size}_batch_{batch_size}_v{black_player_type.value}.pth")
+            total_loss, total_policy_acc, total_value_acc = evaluate_game(game_num, black_player_model, game_data_loader, black_player_type, game.state, total_loss, total_policy_acc, total_value_acc)
+        
         if not export_game:
             records.clear()
 
@@ -197,24 +205,31 @@ def main(game_num: int):
         export_game_records(records, game.state.value, game.board_size)
         records.clear()
 
-    return (game.state.name, moves_counter)
+    return game.state.name, moves_counter, total_loss, total_policy_acc, total_value_acc
 
-def train_game(model:GameNetwork, records, winner, weights_name):
+def create_data_loader(records, winner):
     from torch.utils.data import DataLoader
-    learning_rate = 0.0001
-
     records_list = [records[key] for key in records]
     for record in records_list:
         if record["winner"] is None:
             record["winner"] = winner
-    
+
     dataset = GameDataset(records_list)
-    train_loader = DataLoader(dataset, batch_size=1, shuffle=False)
-    
-    game_network.train(model, train_loader, val_loader=None, epochs=1, lr=learning_rate)
+    return DataLoader(dataset, batch_size=1, shuffle=False)
+
+
+
+def train_game(model:GameNetwork, data_loader, weights_name):
+    learning_rate = 0.0001
+    game_network.train(model, data_loader, val_loader=None, epochs=1, lr=learning_rate)
     model.save_weights(weights_name)
 
-def print_game_results(winners):
+def evaluate_game(game_num, model, data_loader, player_type, winner, total_loss, total_policy_acc, total_value_acc):
+    avg_val_loss, val_policy_acc, val_value_acc = game_network.evaluate(model, data_loader)
+    print(f"Game #{game_num} - Black Model - {player_type} - {winner} - Loss: {avg_val_loss:.6f}, Policy Accuracy: {val_policy_acc:.2%}, Value Accuracy: {val_value_acc:.2%}", flush=True)    
+    return total_loss + avg_val_loss, total_policy_acc + val_policy_acc, total_value_acc + val_value_acc
+
+def print_game_results(winners, loss_avg, policy_avg, value_avg, total_moves):
     results = {}
     for winner in winners:
         if winner[0] not in results:
@@ -225,16 +240,32 @@ def print_game_results(winners):
     for player in results:
         print("#### PLayer:", player, "wins:", results[player]["wins"], "avg:",results[player]["avg"])
 
+    print("############### MODEL RESULTS ###############")
+    print(f"#### Total Moves: {total_moves}")
+    print(f"#### Average Loss: {loss_avg:.6f}")
+    print(f"#### Average Policy Accuracy: {policy_avg:.2%}")
+    print(f"#### Average Value Accuracy: {value_avg:.2%}")
+
+
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     start_time = datetime.now()
     print(f"Training started at: {start_time}", flush=True)
     winners = []
+    total_loss = 0
+    total_policy_acc = 0
+    total_value_acc = 0    
+    total_moves = 0    
     for i in range(10000):
         print(f"Time: {datetime.now()}, iteration: {i+1}", flush=True)
-        winners.append(main(i + 1))  # Change to False to run without GUI
+        winner, moves_counter, loss, policy_acc, value_acc = main(i + 1)
+        total_loss += (moves_counter * loss)
+        total_policy_acc += (moves_counter * policy_acc)
+        total_value_acc += (moves_counter * value_acc)
+        total_moves += moves_counter
+        winners.append((winner, moves_counter))  # Change to False to run without GUI
 
-    print_game_results(winners)
+    print_game_results(winners, total_loss/total_moves, total_policy_acc/total_moves, total_value_acc/total_moves, total_moves)
     
     end_time = datetime.now()
     print(f"Training completed at: {end_time}", flush=True)
