@@ -165,7 +165,8 @@ def train(model, train_loader, val_loader, epochs, lr):
 def evaluate(model, dataloader):
     model.eval()
     loss_value_fn = nn.MSELoss()
-    loss_policy_fn = nn.CrossEntropyLoss()
+    # loss_policy_fn = nn.CrossEntropyLoss()
+    loss_policy_fn = nn.KLDivLoss(reduction='batchmean')
 
     total_loss = 0
     correct_policy_predictions = 0
@@ -181,7 +182,8 @@ def evaluate(model, dataloader):
 
             # Compute losses
             loss_value = loss_value_fn(value_pred.squeeze(), y_value)
-            loss_policy = loss_policy_fn(policy_pred, y_policy)
+            # loss_policy = loss_policy_fn(policy_pred, y_policy)
+            loss_policy = loss_policy_fn(F.log_softmax(policy_pred, dim=1), y_policy)
             loss = loss_value + loss_policy
             total_loss += loss.item()
 
