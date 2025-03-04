@@ -83,10 +83,17 @@ class GameDataset(Dataset):
 
         for line in data:
             x = torch.tensor(line["state"], dtype=torch.float)
-            y_policy = F.one_hot(torch.tensor(line["move"], dtype=torch.long), num_classes=75).float()
-            am_i_win = 1 if line["winner"] == line["player"] else 0
-            y_value = torch.tensor(am_i_win, dtype=torch.float)
+            if type(line["move"]) is type(dict()):
+                y_policy = torch.zeros(75, dtype=torch.float)
+                for move, prob in line["move"].items():  
+                    y_policy[move] = prob
+                am_i_win = line["winner"]
+            else:
+                y_policy = F.one_hot(torch.tensor(line["move"], dtype=torch.long), num_classes=75).float()
+                am_i_win = 1 if line["winner"] == line["player"] else 0
 
+            y_value = torch.tensor(am_i_win, dtype=torch.float)
+            
             self.samples.append((x, y_value, y_policy))
 
     def __len__(self):
@@ -122,7 +129,8 @@ def train(model, train_loader, val_loader, epochs, lr):
     model.to(model.device)  # Ensure model is on GPU/CPU
     optimizer = optim.Adam(model.parameters(), lr=lr)
     loss_value_fn = nn.MSELoss()
-    loss_policy_fn = nn.CrossEntropyLoss()
+    # loss_policy_fn = nn.CrossEntropyLoss()
+    loss_policy_fn = nn.KLDivLoss(reduction='batchmean')
 
     for epoch in range(epochs):
         model.train()
@@ -137,7 +145,8 @@ def train(model, train_loader, val_loader, epochs, lr):
 
             # Compute losses
             loss_value = loss_value_fn(value_pred.squeeze(), y_value)
-            loss_policy = loss_policy_fn(policy_pred, y_policy)
+            # loss_policy = loss_policy_fn(policy_pred, y_policy)
+            loss_policy = loss_policy_fn(F.log_softmax(policy_pred, dim=1), y_policy)
 
             loss = loss_value + loss_policy
             loss.backward()

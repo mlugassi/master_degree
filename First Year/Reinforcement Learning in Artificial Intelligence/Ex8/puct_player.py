@@ -13,16 +13,19 @@ class PUCTPlayer:
         self.c_puct = c_puct
         self.training = training
 
-    def choose_move(self, game, num_iterations=1000):
+    def choose_move(self, game: Breakthrough, num_iterations=1000):
         root = PUCTNode(parent=None, prior_prob=1) #TODO Rafuz is wondering if it is needed :)
 
         if self.training:
             blocking_move = self.get_blocking_move(game.clone())
             wining_move = self.get_wining_move(game.clone())
+            y_policy = [0 for _ in range((game.board_size ** 2) * 3)]
             if wining_move:
-                return wining_move
+                y_policy[game.undecode(wining_move[0], wining_move[1])] = 1
+                return wining_move, 1, y_policy
             elif blocking_move:
-                return blocking_move
+                y_policy[game.undecode(blocking_move[0], blocking_move[1])] = 1
+                return blocking_move, self.evaluate_state(game)[0], y_policy
 
         for _ in range(num_iterations):
             node = root
@@ -45,11 +48,13 @@ class PUCTPlayer:
 
         # Choose action with the highest visit count
         action_visits = {action: child.visit_count for action, child in root.children.items()}
+        total_visits = sum(action_visits.values())
+        policy_distribution = {move: count / total_visits for move, count in action_visits.items()}
         if self.training:
             chosen_action = random.choices(list(action_visits.keys()), weights=list(action_visits.values()), k=1)[0]
         else:
             chosen_action = max(action_visits, key=action_visits.get)
-        return game.decode(chosen_action)
+        return game.decode(chosen_action), root.q_value, policy_distribution
 
     def evaluate_state(self, game_state: Breakthrough):
         """Evaluates the state using the neural network."""

@@ -86,7 +86,9 @@ class PlayerType(Enum):
     USER = 0
     PUCTv1 = 1
     PUCTv2 = 2
-    PUCTv2_1 = 2.1
+    PUCTv2_1 = 2.1 # policy
+    PUCTv2_2 = 2.2 # policy + lr 0.001
+    PUCTv2_3 = 2.3 # policy + q_value + lr 0.0001
     MCTS = 3
 
 
@@ -114,8 +116,8 @@ def main(game_num: int):
     use_gui         = False
     train_model     = True
     export_game     = False
-    white_player_type = PlayerType.PUCTv2_1
-    black_player_type = PlayerType.PUCTv2_1
+    white_player_type = PlayerType.PUCTv2_3
+    black_player_type = PlayerType.PUCTv2_3
 
 
     if (white_player_type == PlayerType.USER or black_player_type == PlayerType.USER) and not use_gui:
@@ -126,6 +128,7 @@ def main(game_num: int):
 
     white_player, white_player_model = build_player(white_player_type, Player.White, board_size, batch_size, exploration, train_model)
     black_player, black_player_model = build_player(black_player_type, Player.Black, board_size, batch_size, exploration, train_model)
+    moves_counter = 0
 
     if use_gui:
         pygame.init()
@@ -146,26 +149,28 @@ def main(game_num: int):
             if white_player is None:
                 move = my_move(game, screen, clock, use_gui)
             else:
-                move = white_player.choose_move(game, num_iterations=iteration)
+                move, q_value, policy_distribution = white_player.choose_move(game, num_iterations=iteration)
         else:
             if black_player is None:
                 move = my_move(game, screen, clock, use_gui)
             else:
-                move = black_player.choose_move(game, num_iterations=iteration)            
+                move, q_value, policy_distribution = black_player.choose_move(game, num_iterations=iteration)            
 
         if train_model:
             records["move_" + str(len(records))] = {
                 "state": game.encode(),
-                "move": game.undecode(move[0], move[1]),
-                "player": game.player
+                "move": game.undecode(move[0], move[1]) if not policy_distribution else policy_distribution,
+                "player": game.player,
+                "winner": q_value if q_value else None
             }
         game.make_move(move[0], move[1])
+        moves_counter += 1
         
         if use_gui:
             refresh(game, screen)
             pygame.display.flip()
             clock.tick(30)
-    print(f"Game #{game_num} - White: {white_player_type.name}, Black: {black_player_type.name} - {game.state.name}, winning: {game.state}, steps: {len(records)}", flush=True)
+    print(f"Game #{game_num} - White: {white_player_type.name}, Black: {black_player_type.name} - {game.state.name}, winning: {game.state}, steps: {moves_counter}", flush=True)
     if use_gui:
         while True:
             for event in pygame.event.get():
@@ -191,7 +196,7 @@ def main(game_num: int):
         export_game_records(records, game.state.value, game.board_size)
         records.clear()
 
-
+    return (game.state.name, moves_counter)
 
 def train_game(model:GameNetwork, records, winner, weights_name):
     from torch.utils.data import DataLoader
@@ -199,7 +204,8 @@ def train_game(model:GameNetwork, records, winner, weights_name):
 
     records_list = [records[key] for key in records]
     for record in records_list:
-        record["winner"] = winner
+        if record["winner"] is None:
+            record["winner"] = winner
     
     dataset = GameDataset(records_list)
     train_loader = DataLoader(dataset, batch_size=1, shuffle=False)
@@ -207,15 +213,28 @@ def train_game(model:GameNetwork, records, winner, weights_name):
     game_network.train(model, train_loader, val_loader=None, epochs=1, lr=learning_rate)
     model.save_weights(weights_name)
 
+def print_game_results(winners):
+    results = {}
+    for winner in winners:
+        if winner[0] not in results:
+            results[winner[0]] = {"wins": 0, "avg":0}
+        results[winner[0]]["avg"] = (results[winner[0]]["wins"] * results[winner[0]]["avg"] + winner[1]) / (results[winner[0]]["wins"] + 1)
+        results[winner[0]]["wins"] += 1
+    print("############### GAME RESULTS ###############")
+    for player in results:
+        print("#### PLayer:", player, "wins:", results[player]["wins"], "avg:",results[player]["avg"])
+
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     start_time = datetime.now()
     print(f"Training started at: {start_time}", flush=True)
-    
+    winners = []
     for i in range(10000):
         print(f"Time: {datetime.now()}, iteration: {i+1}", flush=True)
-        main(i + 1)  # Change to False to run without GUI
+        winners.append(main(i + 1))  # Change to False to run without GUI
 
+    print_game_results(winners)
+    
     end_time = datetime.now()
     print(f"Training completed at: {end_time}", flush=True)
     print(f"Total training time: {end_time - start_time}", flush=True)
