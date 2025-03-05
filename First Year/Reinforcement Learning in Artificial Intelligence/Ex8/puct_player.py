@@ -6,12 +6,16 @@ from game_network import GameNetwork, GameDataset
 from puct_node import PUCTNode
 from breakthrough_types import *
 import random
+import sys
+import time
+import json
 
 class PUCTPlayer:
     def __init__(self, model, c_puct, training):
         self.model = model
         self.c_puct = c_puct
         self.training = training
+        self.seconds = time.time()
 
     def choose_move(self, game: Breakthrough, num_iterations=1000):
         root = PUCTNode(parent=None, prior_prob=1) #TODO Rafuz is wondering if it is needed :)
@@ -39,15 +43,24 @@ class PUCTPlayer:
                 node = node.rand_child() if self.training else node.best_child(self.c_puct)
                 move = game_state.decode(node.move_idx)
                 game_state.make_move(move[0], move[1])
-
-            value, action_probs = self.evaluate_state(game_state)
-            node.expand(action_probs)
+            if game_state.state == GameState.OnGoing:
+                value, action_probs = self.evaluate_state(game_state)
+                node.expand(action_probs)
+            else:
+                if self.training:
+                    value = 1
+                else:
+                    game_state.undo()
+                    value, _ = self.evaluate_state(game_state)
 
             # Backpropagation: Update the tree with the simulation result
             node.backpropagate(value)
 
         # Choose action with the highest visit count
+
         action_visits = {action: child.visit_count for action, child in root.children.items()}
+        # out = open(f"puct_tree_{self.seconds}.json", "w")
+        # save_puct_tree_as_json(root, out)
         total_visits = sum(action_visits.values())
         policy_distribution = {move: count / total_visits for move, count in action_visits.items()}
         if self.training:
@@ -99,5 +112,32 @@ class PUCTPlayer:
         for move in game.legal_moves():
             if move[0][1] == y:
                 return move
-
         return None
+    
+def puct_tree_to_dict(node:PUCTNode):
+    """
+    Recursively converts a PUCT tree node into a dictionary for JSON serialization.
+    
+    :param node: The root node of the tree.
+    :return: A dictionary representing the tree structure.
+    """
+    return {
+        "visits": node.visit_count,
+        "value": round(node.q_value, 3),
+        "prior": round(node.prior_prob, 3),
+        "children": {
+            action: puct_tree_to_dict(child)
+            for action, child in node.children.items()
+        } if node.children else None  # Only include children if they exist
+    }
+
+def save_puct_tree_as_json(root:PUCTNode, jsonname="puct_tree.json"):
+    """
+    Saves the PUCT tree to a JSON file for viewing in VS Code.
+
+    :param root: The root node of the tree.
+    :param filename: The name of the JSON file to save.
+    """
+    tree_dict = puct_tree_to_dict(root)
+    json.dump(tree_dict, jsonname, indent=4)
+    print(f"Tree saved to {jsonname}")

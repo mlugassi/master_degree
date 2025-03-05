@@ -18,28 +18,30 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 seconds = time.time()
 
 def my_move(game: Breakthrough, screen=None, clock=None, use_gui=True):
-    if not use_gui:
-        # If GUI is disabled, just return a move from the console
-        print("Enter move (e.g., x1 y1 x2 y2):")
-        x1, y1, x2, y2 = map(int, input().split())
-        return ((x1, y1), (x2, y2))
-
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
-                sys.exit()            
+                sys.exit()
             elif event.type == pygame.MOUSEBUTTONDOWN and game.state == GameState.OnGoing:
                 mx, my = pygame.mouse.get_pos()
-                x, y = mx // game.tile_size, my // game.tile_size
-
-                if game.selection is None and game.board[y][x] == game.player:
-                    game.selection = (x, y)
-                elif game.selection:
-                    if (x, y) in game.valid_moves(game.selection):
-                        return (game.selection, (x, y))
-                    else:
-                        game.selection = None
+                
+                # בדיקה האם נלחץ כפתור Undo
+                if undo_button_rect.collidepoint(mx, my):
+                    game.undo()
+                    return None
+                
+                # חישוב קואורדינטות של הלוח עם השוליים
+                x, y = (mx - game.MARGIN) // game.tile_size, (my - game.MARGIN) // game.tile_size
+                
+                if 0 <= x < game.board_size and 0 <= y < game.board_size:
+                    if game.selection is None and game.board[y][x] == game.player:
+                        game.selection = (x, y)
+                    elif game.selection:
+                        if (x, y) in game.valid_moves(game.selection):
+                            return (game.selection, (x, y))
+                        else:
+                            game.selection = None
                 refresh(game, screen)
                 pygame.display.flip()
                 clock.tick(30)
@@ -49,30 +51,45 @@ def draw_board(game: Breakthrough, screen):
     for y in range(game.board_size):
         for x in range(game.board_size):
             color = Colors.White if (x + y) % 2 == 0 else Colors.Gray
-            pygame.draw.rect(screen, color, (x * game.tile_size, y * game.tile_size, game.tile_size, game.tile_size))
+            pygame.draw.rect(screen, color, 
+                             (game.MARGIN + x * game.tile_size, game.MARGIN + y * game.tile_size, 
+                              game.tile_size, game.tile_size))
+
             piece = game.board[y][x]
             if piece != 0:
                 piece_color = Colors.White if piece == 1 else Colors.Black
                 pygame.draw.circle(screen, piece_color, 
-                    (x * game.tile_size + game.tile_size // 2, y * game.tile_size + game.tile_size // 2), 
-                    game.tile_size // 3)
+                                   (game.MARGIN + x * game.tile_size + game.tile_size // 2, 
+                                    game.MARGIN + y * game.tile_size + game.tile_size // 2), 
+                                   game.tile_size // 3)
                 if piece == 1:
                     pygame.draw.circle(screen, Colors.Black, 
-                        (x * game.tile_size + game.tile_size // 2, y * game.tile_size + game.tile_size // 2), 
-                        game.tile_size // 3, 2)
+                                       (game.MARGIN + x * game.tile_size + game.tile_size // 2, 
+                                        game.MARGIN + y * game.tile_size + game.tile_size // 2), 
+                                       game.tile_size // 3, 2)
                     
-def draw_selection(game, screen):
+def draw_selection(game:Breakthrough, screen):
     if game.selection:
         x, y = game.selection
-        pygame.draw.rect(screen, Colors.LightGray, (x * game.tile_size, y * game.tile_size, game.tile_size, game.tile_size), 3)
+        pygame.draw.rect(screen, Colors.LightGray, (game.MARGIN + x * game.tile_size, game.MARGIN + y * game.tile_size, game.tile_size, game.tile_size), 3)
         for move in game.valid_moves((x, y)):
             mx, my = move
-            pygame.draw.rect(screen, Colors.Green, (mx * game.tile_size, my * game.tile_size, game.tile_size, game.tile_size), 3)
-            
+            pygame.draw.rect(screen, Colors.Green, (game.MARGIN + mx * game.tile_size, game.MARGIN + my * game.tile_size, game.tile_size, game.tile_size), 3)
+
+def draw_undo_button(game:Breakthrough, screen):
+    button_rect = pygame.Rect(game.MARGIN, game.window_size - 50, 100, 40)  # הזזה למיקום טוב
+    pygame.draw.rect(screen, Colors.Gray, button_rect)
+    font = pygame.font.SysFont(None, 30)
+    text = font.render("Undo", True, Colors.White)
+    screen.blit(text, (game.MARGIN + 30, game.window_size - 40))
+    return button_rect
+      
 def refresh(game, screen):
     screen.fill(Colors.Black)
     draw_board(game, screen)
     draw_selection(game, screen)
+    global undo_button_rect
+    undo_button_rect = draw_undo_button(game, screen)
 
 def export_game_records(records, winner, size):
     for record in records:
@@ -87,12 +104,9 @@ def export_game_records(records, winner, size):
 class PlayerType(Enum):
     USER = 0
     PUCTv1 = 1
-    PUCTv1_1 = 1.1
+    PUCTv1_1 = 1.1 # exploration 2 + 7k iter
     PUCTv2 = 2
-    PUCTv2_1 = 2.1 # policy
-    PUCTv2_2 = 2.2 # policy + lr 0.001
-    PUCTv2_3 = 2.3 # policy + q_value + lr 0.0001
-    PUCTv2_4 = 2.4 # policy + q_value + lr 0.0001 + exploration 2 + 7k iter
+    PUCTv2_1 = 2.1 # exploration 2 + 7k iter
     MCTS = 3
 
 
@@ -115,13 +129,13 @@ def main(game_num: int):
     # inputs
     board_size  = 5
     batch_size = 512
-    iteration   = 1*1000
+    iteration   = 7*1000
     exploration = 2
     use_gui         = False
-    train_model     = False
+    train_model     = True
     export_game     = False
-    white_player_type = PlayerType.MCTS
-    black_player_type = PlayerType.PUCTv2_4
+    white_player_type = PlayerType.PUCTv2_1
+    black_player_type = PlayerType.PUCTv2_1
 
     if (white_player_type == PlayerType.USER or black_player_type == PlayerType.USER) and not use_gui:
         exit("Error: You must Gui to play by yourself.")
@@ -150,7 +164,7 @@ def main(game_num: int):
     else:
         screen = None
         clock = None
-
+    policy_distribution = q_value = None
     while game.state == GameState.OnGoing:
         if game.player == Player.White:
             if white_player is None:
@@ -162,7 +176,11 @@ def main(game_num: int):
                 move = my_move(game, screen, clock, use_gui)
             else:
                 move, q_value, policy_distribution = black_player.choose_move(game, num_iterations=iteration)            
-
+        if move is None:
+            refresh(game, screen)
+            pygame.display.flip()
+            clock.tick(30)
+            continue
         if train_model:
             records["move_" + str(len(records))] = {
                 "state": game.encode(),

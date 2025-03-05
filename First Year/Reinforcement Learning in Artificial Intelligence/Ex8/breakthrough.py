@@ -10,7 +10,10 @@ class Breakthrough:
     def __init__(self, board_size=8, tile_size=80):
         self.board_size = board_size
         self.tile_size = tile_size
-        self.window_size = tile_size * board_size
+        self.MARGIN = 50  # שוליים מסביב ללוח
+        # self.window_size = tile_size * board_size
+        self.window_size = board_size * tile_size + 2 * self.MARGIN  # כולל שוליים
+
         self.board = [[0 for _ in range(self.board_size)] for _ in range(self.board_size)]
         for y in range(self.board_size):
             if y <= 1:
@@ -22,6 +25,7 @@ class Breakthrough:
         self.state = GameState.OnGoing
         self.player = random.choice([Player.White, Player.Black])
         self.selection = None
+        self.history = []
 
     def get_state(self):
         for x in range(self.board_size):
@@ -53,6 +57,7 @@ class Breakthrough:
         return Player.Black if self.player == Player.White else Player.White
     
     def make_move(self, start, end):
+        self.history.append(copy.deepcopy(self.board))
         x0, y0 = start
         x1, y1 = end
         self.board[y0][x0] = 0
@@ -67,6 +72,10 @@ class Breakthrough:
         self.player = self.get_other_player()
         self.state = GameState.OnGoing
         self.selection = None
+    
+    def undo(self):
+        if self.history:
+            self.unmake_move(self.history.pop())
 
     def clone(self):
         return copy.deepcopy(self)
