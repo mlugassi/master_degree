@@ -17,9 +17,10 @@ logfile = sys.stdout
 # logfile = open(f"gameNetwork_{seconds}.log", "w")
 
 class GameNetwork(nn.Module):
-    def __init__(self, board_size, device=None):
+    def __init__(self, board_size, device=None, weights_name=None ):
         super(GameNetwork, self).__init__()
         self.device = device if device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.weights_name = weights_name
         # print(f"Using device: {self.device}", file=logfile)
         input_dim = (board_size ** 2) * 2 + 1
         num_actions = (board_size ** 2) * 3
@@ -64,13 +65,18 @@ class GameNetwork(nn.Module):
 
         return value, policy
 
-    def save_weights(self, file_path):
+    def save_weights(self, file_path=None):
         """Saves the network weights to a file"""
+        if not file_path:
+            file_path = self.weights_name
         torch.save(self.state_dict(), file_path)
 
-    def load_weights(self, file_path, train=True):
+    def load_weights(self, file_path=None, train=True):
         """Loads saved weights from a file"""
+        if not file_path:
+            file_path = self.weights_name
         self.load_state_dict(torch.load(file_path, map_location=self.device))
+
         if train:
             self.train()
         else:

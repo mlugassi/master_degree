@@ -7,6 +7,11 @@ import numpy as np
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
 from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import functional as F
+import numpy as np
+import torchvision.transforms as T
+from PIL import Image
+import glob
+
 
 # Custom dataset for LabelMe annotations
 class ScrollDataset(Dataset):
@@ -129,8 +134,8 @@ def calculate_iou(box1, box2):
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     # Load dataset
-    json_dir = "./train"  # Path to LabelMe JSON files
-    img_dir = "./train"  # Path to images
+    json_dir = "train"  # Path to LabelMe JSON files
+    img_dir = "train"  # Path to images
     dataset = ScrollDataset(json_dir, img_dir)
     dataloader = DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
 
@@ -172,5 +177,5 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load("faster_rcnn.pth"))  # טוען מודל מאומן
 
     # הערכת המודל על סט הבדיקה
-    evaluate_model(model, "test_images", "test_annotations")
+    evaluate_model(model, "train", "train")
 

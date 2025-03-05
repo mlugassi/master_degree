@@ -12,6 +12,8 @@ import json
 import os
 import time
 from datetime import datetime
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 seconds = time.time()
 
@@ -90,6 +92,7 @@ class PlayerType(Enum):
     PUCTv2_1 = 2.1 # policy
     PUCTv2_2 = 2.2 # policy + lr 0.001
     PUCTv2_3 = 2.3 # policy + q_value + lr 0.0001
+    PUCTv2_4 = 2.4 # policy + q_value + lr 0.0001 + exploration 2 + 7k iter
     MCTS = 3
 
 
@@ -97,10 +100,10 @@ def build_player(player_type: PlayerType, player: Player, board_size: int, batch
     if player_type == PlayerType.USER:
         return None, None
     if player_type.name.startswith("PUCT"):
-        game_model = GameNetwork(board_size)
         weights_name = f"game_network_weights_{board_size}_batch_{batch_size}_v{player_type.value}.pth"
+        game_model = GameNetwork(board_size=board_size, weights_name=weights_name)
         if os.path.isfile(weights_name):
-            game_model.load_weights(weights_name, train=False)
+            game_model.load_weights(train=False)
         else:
             print("Error: weights file:", weights_name, "didn't found")
             exit(1)
@@ -113,12 +116,12 @@ def main(game_num: int):
     board_size  = 5
     batch_size = 512
     iteration   = 1*1000
-    exploration = 0.8
+    exploration = 2
     use_gui         = False
-    train_model     = True
+    train_model     = False
     export_game     = False
-    white_player_type = PlayerType.PUCTv1
-    black_player_type = PlayerType.PUCTv1_1
+    white_player_type = PlayerType.MCTS
+    black_player_type = PlayerType.PUCTv2_4
 
     if (white_player_type == PlayerType.USER or black_player_type == PlayerType.USER) and not use_gui:
         exit("Error: You must Gui to play by yourself.")
@@ -174,6 +177,10 @@ def main(game_num: int):
             refresh(game, screen)
             pygame.display.flip()
             clock.tick(30)
+    
+    if not train_model:
+        print(f"Game #{game_num} - White: {white_player_type.name}, Black: {black_player_type.name} - {game.state.name}, winning: {game.state}, steps: {moves_counter}", flush=True)
+    
     if use_gui:
         while True:
             for event in pygame.event.get():
@@ -190,12 +197,15 @@ def main(game_num: int):
     if train_model:
         game_data_loader = create_data_loader(records, game.state)
         if white_player_model and "_" in white_player_type.name:
-            train_game(white_player_model, game_data_loader, f"game_network_weights_{board_size}_batch_{batch_size}_v{white_player_type.value}.pth")
+            train_game(white_player_model, game_data_loader)
             total_loss, total_policy_acc, total_value_acc = evaluate_game(game_num, white_player_model, game_data_loader, white_player_type, game.state, total_loss, total_policy_acc, total_value_acc)
 
         if black_player_model and "_" in  black_player_type.name:
-            train_game(black_player_model, game_data_loader, f"game_network_weights_{board_size}_batch_{batch_size}_v{black_player_type.value}.pth")
-            total_loss, total_policy_acc, total_value_acc = evaluate_game(game_num, black_player_model, game_data_loader, black_player_type, game.state, total_loss, total_policy_acc, total_value_acc)
+            if black_player_type.name != white_player_type.name:
+                train_game(black_player_model, game_data_loader)
+                total_loss, total_policy_acc, total_value_acc = evaluate_game(game_num, black_player_model, game_data_loader, black_player_type, game.state, total_loss, total_policy_acc, total_value_acc)
+            else:
+                black_player_model.load_weights()
         
         if not export_game:
             records.clear()
@@ -218,10 +228,10 @@ def create_data_loader(records, winner):
 
 
 
-def train_game(model:GameNetwork, data_loader, weights_name):
+def train_game(model:GameNetwork, data_loader):
     learning_rate = 0.0001
-    game_network.train(model, data_loader, val_loader=None, epochs=1, lr=learning_rate)
-    model.save_weights(weights_name)
+    game_network.train(model, data_loader, val_loader=None, epochs=10, lr=learning_rate)
+    model.save_weights()
 
 def evaluate_game(game_num, model, data_loader, player_type, winner, total_loss, total_policy_acc, total_value_acc):
     avg_val_loss, val_policy_acc, val_value_acc = game_network.evaluate(model, data_loader)
