@@ -129,13 +129,13 @@ def main(game_num: int):
     # inputs
     board_size  = 5
     batch_size = 512
-    iteration   = 7*1000
-    exploration = 2
-    use_gui         = False
-    train_model     = True
+    iteration   = 5*1000
+    exploration = 1.2
+    use_gui         = True
+    train_model     = False
     export_game     = False
-    white_player_type = PlayerType.PUCTv2_1
-    black_player_type = PlayerType.PUCTv2_1
+    white_player_type = PlayerType.USER
+    black_player_type = PlayerType.PUCTv2
 
     if (white_player_type == PlayerType.USER or black_player_type == PlayerType.USER) and not use_gui:
         exit("Error: You must Gui to play by yourself.")

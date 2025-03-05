@@ -43,24 +43,21 @@ class PUCTPlayer:
                 node = node.rand_child() if self.training else node.best_child(self.c_puct)
                 move = game_state.decode(node.move_idx)
                 game_state.make_move(move[0], move[1])
+            
             if game_state.state == GameState.OnGoing:
                 value, action_probs = self.evaluate_state(game_state)
                 node.expand(action_probs)
             else:
-                if self.training:
-                    value = 1
-                else:
-                    game_state.undo()
-                    value, _ = self.evaluate_state(game_state)
+                game_state.undo()
+                node = node.parent
+                value, _ = self.evaluate_state(game_state)
 
-            # Backpropagation: Update the tree with the simulation result
             node.backpropagate(value)
-
+        
         # Choose action with the highest visit count
-
         action_visits = {action: child.visit_count for action, child in root.children.items()}
-        # out = open(f"puct_tree_{self.seconds}.json", "w")
-        # save_puct_tree_as_json(root, out)
+        out = open(f"puct_tree_{self.seconds}.json", "w")
+        save_puct_tree_as_json(root, out)
         total_visits = sum(action_visits.values())
         policy_distribution = {move: count / total_visits for move, count in action_visits.items()}
         if self.training:
