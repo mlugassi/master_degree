@@ -48,9 +48,8 @@ class PUCTPlayer:
                 value, action_probs = self.evaluate_state(game_state)
                 node.expand(action_probs)
             else:
-                game_state.undo()
-                node = node.parent
-                value, _ = self.evaluate_state(game_state)
+                value = 0
+                action_probs = dict()
 
             node.backpropagate(value)
         
