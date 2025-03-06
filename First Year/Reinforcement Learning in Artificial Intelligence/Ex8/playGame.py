@@ -113,7 +113,7 @@ class PlayerType(Enum):
 
 def build_player(player_type: PlayerType, player: Player, board_size: int, batch_size:int, exploration: int, train_model=False):
     if player_type == PlayerType.USER:
-        return None, None
+        return None
     if player_type.name.startswith("PUCT"):
         weights_name = f"game_network_weights_{board_size}_batch_{batch_size}_v{player_type.value}.pth"
         game_model = GameNetwork(board_size=board_size, weights_name=weights_name)
@@ -122,9 +122,9 @@ def build_player(player_type: PlayerType, player: Player, board_size: int, batch
         else:
             print("Error: weights file:", weights_name, "didn't found")
             exit(1)
-        return PUCTPlayer(game_model, exploration, training=train_model), game_model
+        return PUCTPlayer(game_model, exploration, training=train_model)
     else:
-        return MCTSPlayer(player, exploration_weight=exploration), None
+        return MCTSPlayer(player, exploration_weight=exploration)
 
 def main(game_num: int):
     # inputs
@@ -133,10 +133,10 @@ def main(game_num: int):
     iteration   = 1*1000
     exploration = 1.2
     learning_rate = 0.001
-    use_gui         = False
-    train_model     = True
+    use_gui         = True
+    train_model     = False
     export_game     = False
-    white_player_type = PlayerType.PUCTv2
+    white_player_type = PlayerType.USER
     black_player_type = PlayerType.PUCTv2_1
 
     if (white_player_type == PlayerType.USER or black_player_type == PlayerType.USER) and not use_gui:
