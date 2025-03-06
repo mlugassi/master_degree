@@ -19,11 +19,16 @@ class EloRating:
         self.ratings[winner] += self.k * (1 - expected_winner)
         self.ratings[loser] += self.k * (0 - expected_loser)
 
-    def leaderboard(self):
-        print("\n############### Elo Leaderboard ###############")
-        for agent, rating in sorted(self.ratings.items(), key=lambda x: x[1], reverse=True):
-            print(f"#### {agent}: {rating:.2f}")
-
+    def print_leaderboard(self, summary=False):
+        if not summary:
+            rate_str = "ELO:"
+            for agent, rating in sorted(self.ratings.items(), key=lambda x: x[1], reverse=True):
+                rate_str += f" {agent}: {rating:.2f}"
+            print(rate_str)
+        else:
+            print("\n############### ELO SUMMARY ###############")
+            for agent, rating in sorted(self.ratings.items(), key=lambda x: x[1], reverse=True):
+                print(f"#### {agent:<10} {rating:.2f}")
 # # Example usage
 # elo = EloRating()
 # elo.add_agent("Agent_A")
