@@ -156,7 +156,8 @@ def main(game_num: int, board_size, batch_size, iteration, exploration, learning
     while game.state == GameState.OnGoing:
         policy_distribution = None
         q_value = None        
-        
+        avg_loss = None
+
         if game.player == Player.White:
             if white_player is None:
                 move = my_move(game, screen, clock, use_gui)
@@ -220,7 +221,7 @@ def main(game_num: int, board_size, batch_size, iteration, exploration, learning
         export_game_records(records, game.state.value, game.board_size)
         records.clear()
     
-    print(f"Game #{game_num} - White: {white_player_type.name}, Black: {black_player_type.name} - {game.state.name}, winning: {game.state}, steps: {moves_counter}, avg_loss: {avg_loss:.6f}", flush=True)
+    print(f"Game #{game_num} - White: {white_player_type.name}, Black: {black_player_type.name} - winning: {game.state.name}, steps: {moves_counter}" + (", avg_loss: {avg_loss:.6f}" if avg_loss is not None else ""), flush=True)
     return game.state, moves_counter
 
 def create_data_loader(records, winner):
@@ -258,6 +259,7 @@ if __name__ == "__main__":
     iteration   = 2*1000
     exploration = 1.2
     learning_rate = 0.001
+    train_model     = True
     trained_player_types = [PlayerType.PUCTv1, 
                             PlayerType.PUCTv1_1
                             ]
@@ -265,7 +267,6 @@ if __name__ == "__main__":
     board_size  = 5
     batch_size = 512
     use_gui         = False
-    train_model     = True
     export_game     = False
 
     print(f"\n############# Configuration #############", flush=True)
@@ -273,11 +274,11 @@ if __name__ == "__main__":
     print(f"iteration: {iteration}", flush=True)
     print(f"exploration: {exploration}", flush=True)
     print(f"learning_rate: {learning_rate}", flush=True)
+    print(f"train_model: {train_model}", flush=True)
     print(f"trained_player_types: {[p.name for p in trained_player_types]}", flush=True)
     print(f"board_size: {board_size}", flush=True)
     print(f"batch_size: {batch_size}", flush=True)
     print(f"use_gui: {use_gui}", flush=True)
-    print(f"train_model: {train_model}", flush=True)
     print(f"export_game: {export_game}", flush=True)
     print(f"########################################\n", flush=True)
 
