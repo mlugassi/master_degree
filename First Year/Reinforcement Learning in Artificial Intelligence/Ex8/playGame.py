@@ -260,8 +260,8 @@ if __name__ == "__main__":
     start_time = datetime.now()
     print(f"Training started at: {start_time}", flush=True)
     
-    num_of_games = 2
-    iteration   = 1*1000
+    num_of_games = 1000
+    iteration   = 2*1000
     exploration = 1.2
     learning_rate = 0.001
     trained_player_types = [PlayerType.PUCTv1, 
@@ -292,7 +292,7 @@ if __name__ == "__main__":
     elo = EloRating(agents=[p.name for p in trained_player_types])    
 
     for i in range(num_of_games):
-        print(f"Time: {datetime.now()}, iteration: {i+1}", flush=True)
+        print(f"\nTime: {datetime.now()}, iteration: {i+1}", flush=True)
         
         winner, moves_counter = main(game_num=(i + 1),
                                      board_size=board_size,
