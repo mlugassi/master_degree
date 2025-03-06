@@ -8,6 +8,7 @@ import game_network
 import pygame
 import sys
 from pygame.locals import *
+from torch.utils.data import DataLoader
 import json
 import os
 import time
@@ -129,13 +130,14 @@ def main(game_num: int):
     # inputs
     board_size  = 5
     batch_size = 512
-    iteration   = 5*1000
+    iteration   = 1*1000
     exploration = 1.2
-    use_gui         = True
-    train_model     = False
+    learning_rate = 0.001
+    use_gui         = False
+    train_model     = True
     export_game     = False
-    white_player_type = PlayerType.USER
-    black_player_type = PlayerType.PUCTv2
+    white_player_type = PlayerType.PUCTv2
+    black_player_type = PlayerType.PUCTv2_1
 
     if (white_player_type == PlayerType.USER or black_player_type == PlayerType.USER) and not use_gui:
         exit("Error: You must Gui to play by yourself.")
@@ -143,8 +145,8 @@ def main(game_num: int):
     records = {}
     game = Breakthrough(board_size=board_size)
 
-    white_player, white_player_model = build_player(white_player_type, Player.White, board_size, batch_size, exploration, train_model)
-    black_player, black_player_model = build_player(black_player_type, Player.Black, board_size, batch_size, exploration, train_model)
+    white_player = build_player(white_player_type, Player.White, board_size, batch_size, exploration, train_model)
+    black_player = build_player(black_player_type, Player.Black, board_size, batch_size, exploration, train_model)
     moves_counter = 0
 
     total_loss = 0
@@ -160,12 +162,15 @@ def main(game_num: int):
         refresh(game, screen)
         pygame.display.flip()
         clock.tick(30)
-
     else:
         screen = None
         clock = None
-    policy_distribution = q_value = None
+    
+    
     while game.state == GameState.OnGoing:
+        policy_distribution = None
+        q_value = None        
+        
         if game.player == Player.White:
             if white_player is None:
                 move = my_move(game, screen, clock, use_gui)
@@ -176,17 +181,19 @@ def main(game_num: int):
                 move = my_move(game, screen, clock, use_gui)
             else:
                 move, q_value, policy_distribution = black_player.choose_move(game, num_iterations=iteration)            
+        
         if move is None:
             refresh(game, screen)
             pygame.display.flip()
             clock.tick(30)
             continue
+        
         if train_model:
             records["move_" + str(len(records))] = {
                 "state": game.encode(),
                 "move": game.undecode(move[0], move[1]) if not policy_distribution else policy_distribution,
                 "player": game.player,
-                "winner": q_value if q_value else None
+                "winner": q_value
             }
         game.make_move(move[0], move[1])
         moves_counter += 1
@@ -196,8 +203,8 @@ def main(game_num: int):
             pygame.display.flip()
             clock.tick(30)
     
-    if not train_model:
-        print(f"Game #{game_num} - White: {white_player_type.name}, Black: {black_player_type.name} - {game.state.name}, winning: {game.state}, steps: {moves_counter}", flush=True)
+    # if not train_model:
+    print(f"Game #{game_num} - White: {white_player_type.name}, Black: {black_player_type.name} - {game.state.name}, winning: {game.state}, steps: {moves_counter}", flush=True)
     
     if use_gui:
         while True:
@@ -214,16 +221,15 @@ def main(game_num: int):
 
     if train_model:
         game_data_loader = create_data_loader(records, game.state)
-        if white_player_model and "_" in white_player_type.name:
-            train_game(white_player_model, game_data_loader)
-            total_loss, total_policy_acc, total_value_acc = evaluate_game(game_num, white_player_model, game_data_loader, white_player_type, game.state, total_loss, total_policy_acc, total_value_acc)
-
-        if black_player_model and "_" in  black_player_type.name:
+        if white_player_type.name.startswith("PUCT") and "_" in white_player_type.name:
+            train_game(white_player.model, game_data_loader, learning_rate)
+            # total_loss, total_policy_acc, total_value_acc = evaluate_game(game_num, white_player.model, game_data_loader, white_player_type, game.state, total_loss, total_policy_acc, total_value_acc, moves_counter)
+        if black_player_type.name.startswith("PUCT") and "_" in  black_player_type.name:
             if black_player_type.name != white_player_type.name:
-                train_game(black_player_model, game_data_loader)
-                total_loss, total_policy_acc, total_value_acc = evaluate_game(game_num, black_player_model, game_data_loader, black_player_type, game.state, total_loss, total_policy_acc, total_value_acc)
+                train_game(black_player.model, game_data_loader, learning_rate)
+                # total_loss, total_policy_acc, total_value_acc = evaluate_game(game_num, black_player.model, game_data_loader, black_player_type, game.state, total_loss, total_policy_acc, total_value_acc, moves_counter)
             else:
-                black_player_model.load_weights()
+                black_player.model.load_weights()
         
         if not export_game:
             records.clear()
@@ -232,11 +238,11 @@ def main(game_num: int):
         export_game_records(records, game.state.value, game.board_size)
         records.clear()
 
-    return game.state.name, moves_counter, total_loss, total_policy_acc, total_value_acc
+    return game.state.name, moves_counter
+    # return game.state.name, moves_counter, total_loss, total_policy_acc, total_value_acc
 
 def create_data_loader(records, winner):
-    from torch.utils.data import DataLoader
-    records_list = [records[key] for key in records]
+    records_list = [records[key] for key in records.keys()]
     for record in records_list:
         if record["winner"] is None:
             record["winner"] = winner
@@ -246,17 +252,17 @@ def create_data_loader(records, winner):
 
 
 
-def train_game(model:GameNetwork, data_loader):
-    learning_rate = 0.0001
-    game_network.train(model, data_loader, val_loader=None, epochs=10, lr=learning_rate)
+def train_game(model:GameNetwork, data_loader, learning_rate):
+    game_network.train(model, data_loader, val_loader=None, epochs=1, lr=learning_rate)
     model.save_weights()
 
-def evaluate_game(game_num, model, data_loader, player_type, winner, total_loss, total_policy_acc, total_value_acc):
+def evaluate_game(game_num, model, data_loader, player_type, winner, total_loss, total_policy_acc, total_value_acc, moves_counter):
     avg_val_loss, val_policy_acc, val_value_acc = game_network.evaluate(model, data_loader)
-    print(f"Game #{game_num} - Black Model - {player_type} - {winner} - Loss: {avg_val_loss:.6f}, Policy Accuracy: {val_policy_acc:.2%}, Value Accuracy: {val_value_acc:.2%}", flush=True)    
+    print(f"Game #{game_num} - Black Model - {player_type} - {winner} - Loss: {avg_val_loss:.6f}, Policy Accuracy: {val_policy_acc:.2%}, Value Accuracy: {val_value_acc:.2%}, Moves: {moves_counter}", flush=True)    
     return total_loss + avg_val_loss, total_policy_acc + val_policy_acc, total_value_acc + val_value_acc
 
-def print_game_results(winners, loss_avg, policy_avg, value_avg, total_moves):
+# def print_game_results(winners, loss_avg, policy_avg, value_avg, total_moves):
+def print_game_results(winners, total_moves):
     results = {}
     for winner in winners:
         if winner[0] not in results:
@@ -267,11 +273,11 @@ def print_game_results(winners, loss_avg, policy_avg, value_avg, total_moves):
     for player in results:
         print("#### PLayer:", player, "wins:", results[player]["wins"], "avg:",results[player]["avg"])
 
-    print("############### MODEL RESULTS ###############")
-    print(f"#### Total Moves: {total_moves}")
-    print(f"#### Average Loss: {loss_avg:.6f}")
-    print(f"#### Average Policy Accuracy: {policy_avg:.2%}")
-    print(f"#### Average Value Accuracy: {value_avg:.2%}")
+    # print("############### MODEL RESULTS ###############")
+    # print(f"#### Total Moves: {total_moves}")
+    # print(f"#### Average Loss: {loss_avg:.6f}")
+    # print(f"#### Average Policy Accuracy: {policy_avg:.2%}")
+    # print(f"#### Average Value Accuracy: {value_avg:.2%}")
 
 
 if __name__ == "__main__":
@@ -283,16 +289,18 @@ if __name__ == "__main__":
     total_policy_acc = 0
     total_value_acc = 0    
     total_moves = 0    
-    for i in range(10000):
+    for i in range(1000):
         print(f"Time: {datetime.now()}, iteration: {i+1}", flush=True)
-        winner, moves_counter, loss, policy_acc, value_acc = main(i + 1)
-        total_loss += (moves_counter * loss)
-        total_policy_acc += (moves_counter * policy_acc)
-        total_value_acc += (moves_counter * value_acc)
+        winner, moves_counter = main(i + 1)
+        # winner, moves_counter, loss, policy_acc, value_acc = main(i + 1)
+        # total_loss += (moves_counter * loss)
+        # total_policy_acc += (moves_counter * policy_acc)
+        # total_value_acc += (moves_counter * value_acc)
         total_moves += moves_counter
         winners.append((winner, moves_counter))  # Change to False to run without GUI
 
-    print_game_results(winners, total_loss/total_moves, total_policy_acc/total_moves, total_value_acc/total_moves, total_moves)
+    print_game_results(winners, total_moves)
+    # print_game_results(winners, total_loss/total_moves, total_policy_acc/total_moves, total_value_acc/total_moves, total_moves)
     
     end_time = datetime.now()
     print(f"Training completed at: {end_time}", flush=True)

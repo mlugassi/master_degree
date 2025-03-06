@@ -49,14 +49,13 @@ class PUCTPlayer:
                 node.expand(action_probs)
             else:
                 value = 0
-                action_probs = dict()
 
             node.backpropagate(value)
         
         # Choose action with the highest visit count
         action_visits = {action: child.visit_count for action, child in root.children.items()}
-        out = open(f"puct_tree_{self.seconds}.json", "w")
-        save_puct_tree_as_json(root, out)
+        # out = open(f"puct_tree_{self.seconds}.json", "w")
+        # save_puct_tree_as_json(root, out)
         total_visits = sum(action_visits.values())
         policy_distribution = {move: count / total_visits for move, count in action_visits.items()}
         if self.training:
