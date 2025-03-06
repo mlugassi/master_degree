@@ -14,6 +14,8 @@ import os
 import time
 from datetime import datetime
 import warnings
+from elo_rating import EloRating
+
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 seconds = time.time()
@@ -238,7 +240,7 @@ def main(game_num: int):
         export_game_records(records, game.state.value, game.board_size)
         records.clear()
 
-    return game.state.name, moves_counter
+    return game.state, moves_counter
     # return game.state.name, moves_counter, total_loss, total_policy_acc, total_value_acc
 
 def create_data_loader(records, winner):
@@ -288,17 +290,25 @@ if __name__ == "__main__":
     total_loss = 0
     total_policy_acc = 0
     total_value_acc = 0    
-    total_moves = 0    
-    for i in range(1000):
+    total_moves = 0
+
+    elo = EloRating(agents=["White", "Black"])    
+
+    for i in range(5):
         print(f"Time: {datetime.now()}, iteration: {i+1}", flush=True)
         winner, moves_counter = main(i + 1)
+        if winner == GameState.WhiteWon:
+            elo.update_ratings(winner="White", loser="Black")
+        else:
+            elo.update_ratings(winner="Black", loser="White")
+
         # winner, moves_counter, loss, policy_acc, value_acc = main(i + 1)
         # total_loss += (moves_counter * loss)
         # total_policy_acc += (moves_counter * policy_acc)
         # total_value_acc += (moves_counter * value_acc)
         total_moves += moves_counter
-        winners.append((winner, moves_counter))  # Change to False to run without GUI
-
+        winners.append((winner.name, moves_counter))  # Change to False to run without GUI
+    elo.leaderboard()
     print_game_results(winners, total_moves)
     # print_game_results(winners, total_loss/total_moves, total_policy_acc/total_moves, total_value_acc/total_moves, total_moves)
     
