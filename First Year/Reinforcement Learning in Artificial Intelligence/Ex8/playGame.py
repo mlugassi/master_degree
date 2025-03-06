@@ -244,16 +244,10 @@ def evaluate_game(game_num, model, data_loader, player_type, winner, total_loss,
     print(f"\nGame #{game_num} - Black Model - {player_type} - {winner} - Loss: {avg_val_loss:.6f}, Policy Accuracy: {val_policy_acc:.2%}, Value Accuracy: {val_value_acc:.2%}, Moves: {moves_counter}", flush=True)    
     return total_loss + avg_val_loss, total_policy_acc + val_policy_acc, total_value_acc + val_value_acc
 
-def print_game_results(winners, total_moves):
-    results = {}
-    for winner in winners:
-        if winner[0] not in results:
-            results[winner[0]] = {"wins": 0, "avg":0}
-        results[winner[0]]["avg"] = (results[winner[0]]["wins"] * results[winner[0]]["avg"] + winner[1]) / (results[winner[0]]["wins"] + 1)
-        results[winner[0]]["wins"] += 1
+def print_game_results(wins_counter, moves_counter):
     print("\n############### GAME RESULTS ###############")
-    for player in results:
-        print("#### Player:", player, "wins:", results[player]["wins"], "avg:",results[player]["avg"])
+    for player in wins_counter:
+        print(f"####  {player:<10} wins: {wins_counter[player]:<4} avg: {0 if wins_counter[player] == 0 else moves_counter[player]/wins_counter[player]:.2f}")
 
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -287,14 +281,14 @@ if __name__ == "__main__":
     print(f"export_game: {export_game}", flush=True)
     print(f"########################################\n", flush=True)
 
-    total_moves = 0
-    winners = []
+    wins_counter = {trained_player_types[0].name: 0, trained_player_types[1].name: 0}
+    moves_counter = {trained_player_types[0].name: 0, trained_player_types[1].name: 0}
     elo = EloRating(agents=[p.name for p in trained_player_types])    
 
     for i in range(num_of_games):
         print(f"\nTime: {datetime.now()}, iteration: {i+1}", flush=True)
         
-        winner, moves_counter = main(game_num=(i + 1),
+        winner, steps = main(game_num=(i + 1),
                                      board_size=board_size,
                                      batch_size=batch_size,
                                      iteration=iteration,
@@ -308,14 +302,17 @@ if __name__ == "__main__":
         
         if winner == GameState.WhiteWon:
             elo.update_ratings(winner=trained_player_types[(i%2)].name, loser=trained_player_types[(i+1)%2].name)
+            wins_counter[trained_player_types[(i%2)].name] += 1
+            moves_counter[trained_player_types[(i%2)].name] += steps
         else:
             elo.update_ratings(winner=trained_player_types[((i+1)%2)].name, loser=trained_player_types[(i)%2].name)
+            wins_counter[trained_player_types[(i+1)%2].name] += 1
+            moves_counter[trained_player_types[(i+1)%2].name] += steps
+
         elo.print_leaderboard(summary=False)
-        total_moves += moves_counter
-        winners.append((winner.name, moves_counter))  # Change to False to run without GUI
     
     elo.print_leaderboard(summary=True)
-    print_game_results(winners, total_moves)
+    print_game_results(wins_counter, moves_counter)
     
     end_time = datetime.now()
     print(f"\nTraining completed at: {end_time}", flush=True)
