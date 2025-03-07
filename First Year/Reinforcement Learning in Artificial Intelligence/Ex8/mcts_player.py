@@ -5,11 +5,10 @@ from breakthrough import *
 from breakthrough_types import *
 
 class MCTSPlayer:
-    def __init__(self, player: Player, exploration_weight=0.2):
+    def __init__(self, player: Player):
         self.player = player
-        self.exploration_weight = exploration_weight
 
-    def choose_move(self, game, num_iterations=1000):
+    def choose_move(self, game, num_iterations, exploration_weight):
         root = MCTSNode(player=self.player, game_state=game.clone())
         blocking_move = self.get_blocking_move(game.clone())
         wining_move = self.get_wining_move(game.clone())
@@ -24,7 +23,7 @@ class MCTSPlayer:
 
             # Selection: Traverse the tree to find the best node to expand
             while not node.untried_moves and node.children:
-                node = node.best_child(self.exploration_weight)
+                node = node.best_child(exploration_weight)
                 game_state.make_move(node.move[0], node.move[1])
 
             # Expansion: Expand a new child node if possible

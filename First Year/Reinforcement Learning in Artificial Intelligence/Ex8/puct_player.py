@@ -11,13 +11,12 @@ import time
 import json
 
 class PUCTPlayer:
-    def __init__(self, model, c_puct, training):
+    def __init__(self, model, training):
         self.model = model
-        self.c_puct = c_puct
         self.training = training
         self.seconds = time.time()
 
-    def choose_move(self, game: Breakthrough, num_iterations=1000):
+    def choose_move(self, game: Breakthrough, num_iterations, c_puct):
         root = PUCTNode(parent=None, prior_prob=1) #TODO Rafuz is wondering if it is needed :)
 
         if self.training:
@@ -40,7 +39,7 @@ class PUCTPlayer:
                 # print("state:", game_state.state)
                 # print("board:", game_state.board)
                 # print("player:", game_state.player)
-                node = node.rand_child() if self.training else node.best_child(self.c_puct)
+                node = node.rand_child() if self.training else node.best_child(c_puct)
                 move = game_state.decode(node.move_idx)
                 game_state.make_move(move[0], move[1])
             

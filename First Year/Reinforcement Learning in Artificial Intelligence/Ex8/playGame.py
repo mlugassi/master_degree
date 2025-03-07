@@ -15,6 +15,7 @@ import time
 from datetime import datetime
 import warnings
 from elo_rating import EloRating
+import random
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -108,12 +109,15 @@ class PlayerType(Enum):
     USER = 0
     PUCTv1 = 1
     PUCTv1_1 = 1.1 # LR 0.001 exploration 1.2
+    PUCTv1_2 = 1.2 # LR 0.01 exploration 1.2
+    PUCTv1_3 = 1.3 # LR 0.001 exploration 2
+    PUCTv1_4 = 1.4 # LR 0.001 exploration 0.5
     PUCTv2 = 2
     PUCTv2_1 = 2.1 # exploration 2 + 7k iter
     MCTS = 3
 
 
-def build_player(player_type: PlayerType, player: Player, board_size: int, batch_size:int, exploration: int, train_model=False):
+def build_player(player_type: PlayerType, player: Player, board_size: int, batch_size:int, train_model=False):
     if player_type == PlayerType.USER:
         return None
     if player_type.name.startswith("PUCT"):
@@ -124,9 +128,9 @@ def build_player(player_type: PlayerType, player: Player, board_size: int, batch
         else:
             print("Error: weights file:", weights_name, "didn't found")
             exit(1)
-        return PUCTPlayer(game_model, exploration, training=train_model)
+        return PUCTPlayer(game_model, training=train_model)
     else:
-        return MCTSPlayer(player, exploration_weight=exploration)
+        return MCTSPlayer(player)
 
 def main(game_num: int, board_size, batch_size, iteration, exploration, learning_rate, use_gui, train_model, export_game, white_player_type, black_player_type):
     if (white_player_type == PlayerType.USER or black_player_type == PlayerType.USER) and not use_gui:
@@ -135,8 +139,8 @@ def main(game_num: int, board_size, batch_size, iteration, exploration, learning
     records = {}
     game = Breakthrough(board_size=board_size)
 
-    white_player = build_player(white_player_type, Player.White, board_size, batch_size, exploration, train_model)
-    black_player = build_player(black_player_type, Player.Black, board_size, batch_size, exploration, train_model)
+    white_player = build_player(white_player_type, Player.White, board_size, batch_size, train_model)
+    black_player = build_player(black_player_type, Player.Black, board_size, batch_size, train_model)
     moves_counter = 0
 
     if use_gui:
@@ -162,12 +166,22 @@ def main(game_num: int, board_size, batch_size, iteration, exploration, learning
             if white_player is None:
                 move = my_move(game, screen, clock, use_gui)
             else:
-                move, q_value, policy_distribution = white_player.choose_move(game, num_iterations=iteration)
+                num_of_iteration = iteration
+                exploration_weight = exploration
+                if not train_model:
+                    num_of_iteration = num_of_iteration if train_model else int(num_of_iteration * (random.randrange(8, 12, 1) / 10))
+                    exploration_weight = exploration_weight if train_model else (exploration_weight * (random.randrange(8, 12, 1) / 10))
+                move, q_value, policy_distribution = white_player.choose_move(game, num_of_iteration, exploration_weight)
         else:
             if black_player is None:
                 move = my_move(game, screen, clock, use_gui)
             else:
-                move, q_value, policy_distribution = black_player.choose_move(game, num_iterations=iteration)            
+                num_of_iteration = iteration
+                exploration_weight = exploration
+                if not train_model:
+                    num_of_iteration = num_of_iteration if train_model else int(num_of_iteration * (random.randrange(8, 12, 1) / 10))
+                    exploration_weight = exploration_weight if train_model else (exploration_weight * (random.randrange(8, 12, 1) / 10))
+                move, q_value, policy_distribution = black_player.choose_move(game, num_of_iteration, exploration_weight)            
         
         if move is None:
             refresh(game, screen)
@@ -221,7 +235,7 @@ def main(game_num: int, board_size, batch_size, iteration, exploration, learning
         export_game_records(records, game.state.value, game.board_size)
         records.clear()
     
-    print(f"Game #{game_num} - White: {white_player_type.name}, Black: {black_player_type.name} - winning: {game.state.name}, steps: {moves_counter}" + (f", avg_loss: {avg_loss:.6f}" if avg_loss is not None else ""), flush=True)
+    print(f"Game #{game_num} - White: {white_player_type.name}, Black: {black_player_type.name} - winning: {game.state.name}, steps: {moves_counter}" + (f", avg_loss: {avg_loss:.6f}" if train_model else ""), flush=True)
     return game.state, moves_counter
 
 def create_data_loader(records, winner):
@@ -250,25 +264,7 @@ def print_game_results(wins_counter, moves_counter):
     for player in wins_counter:
         print(f"####  {player:<10} wins: {wins_counter[player]:<4} avg: {0 if wins_counter[player] == 0 else moves_counter[player]/wins_counter[player]:.2f}")
 
-if __name__ == "__main__":
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    start_time = datetime.now()
-    print(f"Training started at: {start_time}", flush=True)
-    
-    num_of_games = 1000
-    iteration   = 2*1000
-    exploration = 1.2
-    learning_rate = 0.001
-    train_model     = True
-    trained_player_types = [PlayerType.PUCTv1, 
-                            PlayerType.PUCTv1_1
-                            ]
-    
-    board_size  = 5
-    batch_size = 512
-    use_gui         = False
-    export_game     = False
-
+def print_config(num_of_games, iteration, exploration, learning_rate, train_model, trained_player_types, board_size, batch_size, use_gui, export_game):
     print(f"\n############# Configuration #############", flush=True)
     print(f"num_of_games: {num_of_games}", flush=True)
     print(f"iteration: {iteration}", flush=True)
@@ -280,7 +276,28 @@ if __name__ == "__main__":
     print(f"batch_size: {batch_size}", flush=True)
     print(f"use_gui: {use_gui}", flush=True)
     print(f"export_game: {export_game}", flush=True)
-    print(f"########################################\n", flush=True)
+    print(f"########################################\n", flush=True)    
+
+if __name__ == "__main__":
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    start_time = datetime.now()
+    print(f"Training started at: {start_time}", flush=True)
+    
+    num_of_games  = 100
+    iteration     = 2*1000
+    exploration   = 1.2
+    learning_rate = 0.001
+    train_model   = False
+    trained_player_types = [PlayerType.PUCTv1, 
+                            PlayerType.PUCTv1_1
+                            ]
+    
+    board_size  = 5
+    batch_size = 512
+    use_gui         = False
+    export_game     = False
+
+    print_config(num_of_games, iteration, exploration, learning_rate, train_model, trained_player_types, board_size, batch_size, use_gui, export_game)
 
     wins_counter = {trained_player_types[0].name: 0, trained_player_types[1].name: 0}
     moves_counter = {trained_player_types[0].name: 0, trained_player_types[1].name: 0}
@@ -302,16 +319,17 @@ if __name__ == "__main__":
                                      black_player_type = trained_player_types[(i+1)%2])
         
         if winner == GameState.WhiteWon:
-            elo.update_ratings(winner=trained_player_types[(i%2)].name, loser=trained_player_types[(i+1)%2].name)
+            rate_change_str = elo.update_ratings(winner=trained_player_types[(i%2)].name, loser=trained_player_types[(i+1)%2].name)
             wins_counter[trained_player_types[(i%2)].name] += 1
             moves_counter[trained_player_types[(i%2)].name] += steps
         else:
-            elo.update_ratings(winner=trained_player_types[((i+1)%2)].name, loser=trained_player_types[(i)%2].name)
+            rate_change_str = elo.update_ratings(winner=trained_player_types[((i+1)%2)].name, loser=trained_player_types[(i)%2].name)
             wins_counter[trained_player_types[(i+1)%2].name] += 1
             moves_counter[trained_player_types[(i+1)%2].name] += steps
 
-        elo.print_leaderboard(summary=False)
-    
+        elo.print_leaderboard(summary=False, rate_change_str=rate_change_str)
+
+    print_config(num_of_games, iteration, exploration, learning_rate, train_model, trained_player_types, board_size, batch_size, use_gui, export_game)
     elo.print_leaderboard(summary=True)
     print_game_results(wins_counter, moves_counter)
     

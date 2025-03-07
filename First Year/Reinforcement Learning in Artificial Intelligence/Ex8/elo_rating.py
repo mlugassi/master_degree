@@ -16,15 +16,20 @@ class EloRating:
         expected_winner = self.expected_score(winner, loser)
         expected_loser = self.expected_score(loser, winner)
 
-        self.ratings[winner] += self.k * (1 - expected_winner)
-        self.ratings[loser] += self.k * (0 - expected_loser)
+        change_winner = self.k * (1 - expected_winner)
+        change_loser = self.k * (0 - expected_loser)
 
-    def print_leaderboard(self, summary=False):
+        self.ratings[winner] += change_winner
+        self.ratings[loser] += change_loser
+
+        return f"winner: {winner} - rate change: {winner} +{change_winner:.2f}, {loser} -{abs(change_loser):.2f}"
+
+    def print_leaderboard(self, summary=False, rate_change_str=None):
         if not summary:
             rate_str = "ELO:"
             for agent, rating in sorted(self.ratings.items(), key=lambda x: x[1], reverse=True):
                 rate_str += f" {agent}: {rating:.2f}"
-            print(rate_str)
+            print(rate_str + (" - " + rate_change_str if rate_change_str else ""))
         else:
             print("\n############### ELO SUMMARY ###############")
             for agent, rating in sorted(self.ratings.items(), key=lambda x: x[1], reverse=True):
