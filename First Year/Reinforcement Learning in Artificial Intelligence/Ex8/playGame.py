@@ -107,7 +107,7 @@ def export_game_records(records, winner, size):
 class PlayerType(Enum):
     USER = 0
     PUCTv1 = 1
-    PUCTv1_1 = 1.1 # exploration 2 + 7k iter
+    PUCTv1_1 = 1.1 # LR 0.001 exploration 1.2
     PUCTv2 = 2
     PUCTv2_1 = 2.1 # exploration 2 + 7k iter
     MCTS = 3
@@ -221,7 +221,7 @@ def main(game_num: int, board_size, batch_size, iteration, exploration, learning
         export_game_records(records, game.state.value, game.board_size)
         records.clear()
     
-    print(f"Game #{game_num} - White: {white_player_type.name}, Black: {black_player_type.name} - winning: {game.state.name}, steps: {moves_counter}" + (", avg_loss: {avg_loss:.6f}" if avg_loss is not None else ""), flush=True)
+    print(f"Game #{game_num} - White: {white_player_type.name}, Black: {black_player_type.name} - winning: {game.state.name}, steps: {moves_counter}" + (f", avg_loss: {avg_loss:.6f}" if avg_loss is not None else ""), flush=True)
     return game.state, moves_counter
 
 def create_data_loader(records, winner):
