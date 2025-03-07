@@ -283,11 +283,11 @@ if __name__ == "__main__":
     start_time = datetime.now()
     print(f"Training started at: {start_time}", flush=True)
     
-    num_of_games  = 100
+    num_of_games  = 25000
     iteration     = 2*1000
     exploration   = 1.2
     learning_rate = 0.001
-    train_model   = False
+    train_model   = True
     trained_player_types = [PlayerType.PUCTv1, 
                             PlayerType.PUCTv1_1
                             ]
