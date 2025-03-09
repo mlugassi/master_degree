@@ -2,9 +2,9 @@
 
 #SBATCH --partition main
 #SBATCH --time 2-00:00:00
-#SBATCH --job-name 'ex8'
+#SBATCH --job-name 'DNN-Project'
 #SBATCH --output job-%J.out
-#SBATCH --mail-user=michael19191@gmail.com
+#SBATCH --mail-user=zanzuri.refael@gmail.com
 #SBATCH --mail-type=ALL
 #SBATCH --gpus=3
 #SBATCH --export=ALL,PYTHONUNBUFFERED=1
@@ -25,12 +25,5 @@ conda activate ex8
 # export LEARNINGRATE="0.01"
 
 /home/refaelza/.conda/envs/ex8/bin/python3.11 "/home/refaelza/master_degree/First Year/Deep Neural Neworks/Home Exercises/Refael's project/Project.py"
-
-
-
-# Run the Python script
-# for i in {1..100}; do
-#     echo "Running iteration $i"
-# /home/refaelza/.conda/envs/ex8/bin/python3.11 "/home/refaelza/master_degree/First Year/Reinforcement Learning in Artificial Intelligence/Ex8/game_network.py"
 
 # done
