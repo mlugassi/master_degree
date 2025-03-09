@@ -294,7 +294,7 @@ if __name__ == "__main__":
     trained_player_types = [PlayerType.PUCTv1, 
                             PlayerType.PUCTv1_1
                             ]
-    dynamic_player_color = trained_player_types[0] != trained_player_types[1] and False
+    dynamic_player_color = trained_player_types[0] != trained_player_types[1] and True
 
     board_size  = 5
     batch_size = 512
