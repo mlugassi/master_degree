@@ -112,6 +112,8 @@ class PlayerType(Enum):
     PUCTv1_2 = 1.2 # LR 0.01 exploration 1.2
     PUCTv1_3 = 1.3 # LR 0.001 exploration 2
     PUCTv1_4 = 1.4 # LR 0.001 exploration 0.5
+    PUCTv1_5 = 1.5 # LR 0.01 exploration 1.2 iteration 500
+    PUCTv1_6 = 1.6 # LR 0.01 exploration 1.2 iteration 500 agains itself
     PUCTv2 = 2
     PUCTv2_1 = 2.1 # exploration 2 + 7k iter
     MCTS = 3
@@ -264,7 +266,7 @@ def print_game_results(wins_counter, moves_counter):
     for player in wins_counter:
         print(f"####  {player:<10} wins: {wins_counter[player]:<4} avg: {0 if wins_counter[player] == 0 else moves_counter[player]/wins_counter[player]:.2f}")
 
-def print_config(num_of_games, iteration, exploration, learning_rate, train_model, trained_player_types, board_size, batch_size, use_gui, export_game):
+def print_config(num_of_games, iteration, exploration, learning_rate, train_model, trained_player_types, dynamic_player_color, board_size, batch_size, use_gui, export_game):
     print(f"\n############# Configuration #############", flush=True)
     print(f"num_of_games: {num_of_games}", flush=True)
     print(f"iteration: {iteration}", flush=True)
@@ -272,6 +274,7 @@ def print_config(num_of_games, iteration, exploration, learning_rate, train_mode
     print(f"learning_rate: {learning_rate}", flush=True)
     print(f"train_model: {train_model}", flush=True)
     print(f"trained_player_types: {[p.name for p in trained_player_types]}", flush=True)
+    print(f"dynamic_player_color: {dynamic_player_color}", flush=True)
     print(f"board_size: {board_size}", flush=True)
     print(f"batch_size: {batch_size}", flush=True)
     print(f"use_gui: {use_gui}", flush=True)
@@ -291,21 +294,30 @@ if __name__ == "__main__":
     trained_player_types = [PlayerType.PUCTv1, 
                             PlayerType.PUCTv1_1
                             ]
-    
+    dynamic_player_color = trained_player_types[0] != trained_player_types[1] and False
+
     board_size  = 5
     batch_size = 512
     use_gui         = False
     export_game     = False
 
-    print_config(num_of_games, iteration, exploration, learning_rate, train_model, trained_player_types, board_size, batch_size, use_gui, export_game)
+    print_config(num_of_games, iteration, exploration, learning_rate, train_model, trained_player_types, dynamic_player_color, board_size, batch_size, use_gui, export_game)
 
-    wins_counter = {trained_player_types[0].name: 0, trained_player_types[1].name: 0}
-    moves_counter = {trained_player_types[0].name: 0, trained_player_types[1].name: 0}
-    elo = EloRating(agents=[p.name for p in trained_player_types])    
+    elo = EloRating(agents=[(p.name if dynamic_player_color else ("White" if i == 0 else "Black")) for i, p in enumerate(trained_player_types)])    
+
+    wins_counter = {}
+    moves_counter = {}
+    for agent in elo.ratings.keys():
+        wins_counter[agent] = 0
+        moves_counter[agent] = 0
 
     for i in range(num_of_games):
         print(f"\nTime: {datetime.now()}, iteration: {i+1}", flush=True)
-        
+        white_idx = i%2 if dynamic_player_color else 0
+        black_idx = (i+1)%2 if dynamic_player_color else 1
+        white_player_name = trained_player_types[white_idx].name if dynamic_player_color else "White"
+        black_player_name = trained_player_types[black_idx].name if dynamic_player_color else "Black"
+
         winner, steps = main(game_num=(i + 1),
                                      board_size=board_size,
                                      batch_size=batch_size,
@@ -315,21 +327,21 @@ if __name__ == "__main__":
                                      use_gui=use_gui,
                                      train_model=train_model,
                                      export_game=export_game,
-                                     white_player_type = trained_player_types[i%2],
-                                     black_player_type = trained_player_types[(i+1)%2])
+                                     white_player_type = trained_player_types[white_idx],
+                                     black_player_type = trained_player_types[black_idx])
         
         if winner == GameState.WhiteWon:
-            rate_change_str = elo.update_ratings(winner=trained_player_types[(i%2)].name, loser=trained_player_types[(i+1)%2].name)
-            wins_counter[trained_player_types[(i%2)].name] += 1
-            moves_counter[trained_player_types[(i%2)].name] += steps
+            rate_change_str = elo.update_ratings(winner=white_player_name, loser=black_player_name)
+            wins_counter[white_player_name] += 1
+            moves_counter[white_player_name] += steps
         else:
-            rate_change_str = elo.update_ratings(winner=trained_player_types[((i+1)%2)].name, loser=trained_player_types[(i)%2].name)
-            wins_counter[trained_player_types[(i+1)%2].name] += 1
-            moves_counter[trained_player_types[(i+1)%2].name] += steps
+            rate_change_str = elo.update_ratings(black_player_name, loser=white_player_name)
+            wins_counter[black_player_name] += 1
+            moves_counter[black_player_name] += steps
 
         elo.print_leaderboard(summary=False, rate_change_str=rate_change_str)
 
-    print_config(num_of_games, iteration, exploration, learning_rate, train_model, trained_player_types, board_size, batch_size, use_gui, export_game)
+    print_config(num_of_games, iteration, exploration, learning_rate, train_model, trained_player_types, dynamic_player_color, board_size, batch_size, use_gui, export_game)
     elo.print_leaderboard(summary=True)
     print_game_results(wins_counter, moves_counter)
     
