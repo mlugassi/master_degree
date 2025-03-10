@@ -12,6 +12,11 @@ import torchvision.transforms as T
 from PIL import Image
 import glob
 
+import torch
+import torchvision
+
+
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # Custom dataset for LabelMe annotations
 class ScrollDataset(Dataset):
@@ -132,7 +137,6 @@ def calculate_iou(box1, box2):
 
 
 if __name__ == "__main__":
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
     # Load dataset
     json_dir = "train"  # Path to LabelMe JSON files
     img_dir = "train"  # Path to images
@@ -150,8 +154,8 @@ if __name__ == "__main__":
     model.train()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-
-    num_epochs = 10
+    model_name = "./faster_rcnn.pth"
+    num_epochs = 1000
     for epoch in range(num_epochs):
         for images, targets in dataloader:
             images = [img.to(device) for img in images]
@@ -166,15 +170,19 @@ if __name__ == "__main__":
         print(f"Epoch {epoch+1}, Loss: {loss.item():.4f}")
 
     # Save trained model
-    torch.save(model.state_dict(), "faster_rcnn.pth")
+    torch.save(model.state_dict(), model_name)
     print("Model saved!")
 
     # טוען את המודל שאומן
     model = fasterrcnn_resnet50_fpn(pretrained=False)
     num_classes = 2  # רקע + מגילה
     in_features = model.roi_heads.box_predictor.cls_score.in_features
-    model.roi_heads.box_predictor = torch.nn.Linear(in_features, num_classes)
-    model.load_state_dict(torch.load("faster_rcnn.pth"))  # טוען מודל מאומן
+
+    # חייבים להשתמש ב-FastRCNNPredictor בדיוק כמו באימון!
+    model.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(in_features, num_classes)
+
+    # כעת טוען את המשקלים המאומנים
+    model.load_state_dict(torch.load(model_name))
 
     # הערכת המודל על סט הבדיקה
     evaluate_model(model, "train", "train")

@@ -115,7 +115,8 @@ class PlayerType(Enum):
     PUCTv1_5 = 1.5 # LR 0.01 exploration 1.2 iteration 500
     PUCTv1_6 = 1.6 # LR 0.01 exploration 1.2 iteration 500 agains itself
     PUCTv2 = 2
-    PUCTv2_1 = 2.1 # exploration 2 + 7k iter
+    PUCTv2_1 = 2.1 # exploration 1.2 + 2k iter lr 0.001
+    PUCTv2_2 = 2.2 # exploration 0.8 + 2k iter lr 0.0001
     MCTS = 3
 
 
