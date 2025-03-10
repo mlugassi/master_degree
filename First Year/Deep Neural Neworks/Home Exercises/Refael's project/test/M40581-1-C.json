@@ -145,6 +145,330 @@
       "shape_type": "rectangle",
       "flags": {},
       "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          1342.3387096774193,
+          2215.564516129032
+        ],
+        [
+          1729.4354838709676,
+          2612.3387096774195
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          1242.3387096774193,
+          2625.241935483871
+        ],
+        [
+          1645.5645161290324,
+          2938.1451612903224
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          581.0483870967741,
+          2692.983870967742
+        ],
+        [
+          887.5,
+          2902.6612903225805
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          764.9193548387098,
+          2928.467741935484
+        ],
+        [
+          1129.4354838709676,
+          3270.4032258064517
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          1110.0806451612905,
+          2812.3387096774195
+        ],
+        [
+          1297.1774193548388,
+          3015.564516129032
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          952.016129032258,
+          2680.0806451612902
+        ],
+        [
+          1200.4032258064515,
+          2883.3064516129034
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          1306.8548387096773,
+          2947.8225806451615
+        ],
+        [
+          1581.0483870967744,
+          3247.8225806451615
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          2019.758064516129,
+          3225.241935483871
+        ],
+        [
+          1690.725806451613,
+          3018.7903225806454
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          1658.4677419354841,
+          2815.564516129032
+        ],
+        [
+          1993.9516129032256,
+          3025.241935483871
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          1735.8870967741934,
+          2399.435483870968
+        ],
+        [
+          1948.7903225806451,
+          2802.6612903225805
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          1971.3709677419354,
+          2460.725806451613
+        ],
+        [
+          2281.0483870967746,
+          2783.3064516129034
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          2322.9838709677424,
+          2512.3387096774195
+        ],
+        [
+          2868.145161290323,
+          2789.7580645161293
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          2026.2096774193549,
+          2802.6612903225805
+        ],
+        [
+          2255.241935483871,
+          3167.177419354839
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          2264.9193548387093,
+          2789.7580645161293
+        ],
+        [
+          2487.5,
+          2986.532258064516
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          2261.6935483870966,
+          2976.8548387096776
+        ],
+        [
+          2426.209677419355,
+          3096.209677419355
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          2274.5967741935483,
+          3099.435483870968
+        ],
+        [
+          2468.145161290323,
+          3273.6290322580644
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          2503.6290322580644,
+          2812.3387096774195
+        ],
+        [
+          2648.790322580645,
+          2996.209677419355
+        ]
+      ],
+      "group_id": null,
+      "description": null,
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Megila",
+      "points": [
+        [
+          2852.0161290322585,
+          2789.7580645161293
+        ],
+        [
+          2587.5,
+          3228.467741935484
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
     }
   ],
   "imagePath": "M40581-1-C.jpg",
