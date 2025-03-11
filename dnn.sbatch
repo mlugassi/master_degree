@@ -20,5 +20,4 @@ source ~/.bashrc  # Ensure conda is initialized
 conda activate ex8
 
 # Run the Python script
-# /home/michaellu/.conda/envs/ex8/bin/python3.11 "/home/michaellu/master_degree/First Year/Reinforcement Learning in Artificial Intelligence/Ex8/game_network.py"
-/home/michaellu/.conda/envs/ex8/bin/python3.11 "/home/michaellu/master_degree/First Year/Reinforcement Learning in Artificial Intelligence/Ex8/playGame.py"
+/home/michaellu/.conda/envs/ex8/bin/python3.11 "/home/michaellu/master_degree/First Year/Deep Neural Neworks/Home Exercises/Final Project/final_proj_part_a.py"

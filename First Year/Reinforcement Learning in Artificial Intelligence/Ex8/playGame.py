@@ -288,20 +288,21 @@ if __name__ == "__main__":
     start_time = datetime.now()
     print(f"Training started at: {start_time}", flush=True)
     
-    num_of_games  = 1
-    iteration     = 3*1000
+    num_of_games  = 100
+    iteration     = 2*1000
     exploration   = 1.2
     learning_rate = 0.001
     train_model   = False
     trained_player_types = [PlayerType.PUCTv1, 
-                            PlayerType.PUCTv1_2
+                            PlayerType.PUCTv1_1
                             ]
     dynamic_player_color = trained_player_types[0] != trained_player_types[1] and False
     add_randomizion = not train_model and True
 
     board_size  = 5
     batch_size = 512
-    use_gui         = True
+    use_gui         = False
+    
     export_game     = False
 
     print_config(num_of_games, iteration, exploration, learning_rate, train_model, trained_player_types, dynamic_player_color, add_randomizion, board_size, batch_size, use_gui, export_game)
