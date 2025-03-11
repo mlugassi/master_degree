@@ -4,7 +4,6 @@ import json
 import os
 import cv2
 import numpy as np
-from torchvision.models.detection import fasterrcnn_resnet50_fpn
 from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import functional as F
 import numpy as np
@@ -16,6 +15,11 @@ import torchvision
 import gzip
 import shutil
 import re
+from clearml import Task
+import time
+task_name = f"Project_{time.now().strftime('%Y%m%d_%H%M%S')}"
+task = Task.init(project_name="DNN", task_name=task_name)
+
 
 def convert_to_serializable(obj):
     if isinstance(obj, np.ndarray):
@@ -93,3 +97,46 @@ def calculate_iou(box1, box2):
     union = box1_area + box2_area - intersection
 
     return intersection / union if union > 0 else 0
+
+# נתיבים לתמונות ואנוטציות
+labelme_dir = "./train"  # תיקיית קבצי ה-JSON
+yolo_labels_dir = "labels"  # תיקיית היעד לקבצי YOLO
+
+# צור את תיקיית היעד אם היא לא קיימת
+os.makedirs(yolo_labels_dir, exist_ok=True)
+
+def convert_labelme_to_yolo(json_file, output_dir, img_width, img_height):
+    with open(json_file, 'r', encoding="utf-8") as f:
+        data = json.load(f)
+
+    labelme_shapes = data["shapes"]
+    yolo_lines = []
+    
+    for shape in labelme_shapes:
+        points = shape["points"]
+        x_min = min([p[0] for p in points])
+        y_min = min([p[1] for p in points])
+        x_max = max([p[0] for p in points])
+        y_max = max([p[1] for p in points])
+
+        # המרה לקואורדינטות מנורמלות
+        x_center = ((x_min + x_max) / 2) / img_width
+        y_center = ((y_min + y_max) / 2) / img_height
+        width = (x_max - x_min) / img_width
+        height = (y_max - y_min) / img_height
+
+        yolo_lines.append(f"0 {x_center} {y_center} {width} {height}")
+
+    # שמירת קובץ האנוטציה
+    txt_filename = os.path.join(output_dir, os.path.basename(json_file).replace(".json", ".txt"))
+    with open(txt_filename, "w") as out_file:
+        out_file.write("\n".join(yolo_lines))
+
+# המרת כל קובצי ה-JSON
+json_files = glob.glob(os.path.join(labelme_dir, "*.json"))
+for json_file in json_files:
+    # גודל תמונה (צריך להיות נכון לכל התמונות)
+    img_width, img_height = 640, 640  # שנה לפי הצורך
+    convert_labelme_to_yolo(json_file, yolo_labels_dir, img_width, img_height)
+
+print("המרת האנוטציות הסתיימה!")
