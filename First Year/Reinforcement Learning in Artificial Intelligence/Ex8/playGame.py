@@ -16,6 +16,8 @@ from datetime import datetime
 import warnings
 from elo_rating import EloRating
 import random
+import copy
+import torch
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -114,6 +116,15 @@ class PlayerType(Enum):
     PUCTv1_4 = 1.4 # LR 0.001 exploration 0.5
     PUCTv1_5 = 1.5 # LR 0.01 exploration 1.2 iteration 500
     PUCTv1_6 = 1.6 # LR 0.01 exploration 1.2 iteration 500 agains itself
+    PUCTv1_7 = 1.7 # LR 0.001 exploration 1.2 - -policy
+    PUCTv1_8 = 1.8 # LR 0.001 exploration 1.2 - -value
+    PUCTv1_9 = 1.9 # LR 0.001 exploration 1.2 - -policy -value
+    PUCTv1_11 = 1.11 # LR 0.01 exploration 1.2 
+    PUCTv1_12 = 1.12 # LR 0.01 exploration 1.2 againts itself -value
+    PUCTv1_13 = 1.13 # LR 0.001 exploration 1.2 
+    PUCTv1_14 = 1.14 # LR 0.001 exploration 1.2 againts itself -value
+    PUCTv1_15 = 1.15 # TEMP
+
     PUCTv2 = 2
     PUCTv2_1 = 2.1 # exploration 1.2 + 2k iter lr 0.001
     PUCTv2_2 = 2.2 # exploration 0.8 + 2k iter lr 0.0001
@@ -184,7 +195,11 @@ def main(game_num: int, board_size, batch_size, iteration, exploration, learning
                 if add_randomizion:
                     num_of_iteration = num_of_iteration if not add_randomizion else int(num_of_iteration * (random.randrange(80, 121)/100))
                     exploration_weight = exploration_weight if not add_randomizion else (exploration_weight * (random.randrange(80, 121)/100))
-                move, q_value, policy_distribution = black_player.choose_move(game, num_of_iteration, exploration_weight)            
+                
+                if black_player_type == PlayerType.MCTS:
+                    move = black_player.choose_move(game, num_of_iteration, exploration_weight)            
+                else:
+                    move, q_value, policy_distribution = black_player.choose_move(game, num_of_iteration, exploration_weight)            
         
         if move is None:
             refresh(game, screen)
@@ -193,11 +208,13 @@ def main(game_num: int, board_size, batch_size, iteration, exploration, learning
             continue
         
         if train_model:
-            records["move_" + str(len(records))] = {
+            records[f"game_{game_num}_move_{len(records)}"] = {
                 "state": game.encode(),
-                "move": game.undecode(move[0], move[1]) if not policy_distribution else policy_distribution,
+                "move": game.undecode(move[0], move[1]) if policy_distribution is None else policy_distribution,
+                # "move": game.undecode(move[0], move[1]),
                 "player": game.player,
                 "winner": q_value
+                # "winner": None
             }
         game.make_move(move[0], move[1])
         moves_counter += 1
@@ -221,36 +238,41 @@ def main(game_num: int, board_size, batch_size, iteration, exploration, learning
             pygame.display.flip()
             clock.tick(30)
 
-    if train_model:
-        game_data_loader = create_data_loader(records, game.state)
-        if white_player_type.name.startswith("PUCT") and "_" in white_player_type.name:
-            avg_loss = train_game(white_player.model, game_data_loader, learning_rate)
-        if black_player_type.name.startswith("PUCT") and "_" in  black_player_type.name:
-            if black_player_type.name != white_player_type.name:
-                avg_loss = train_game(black_player.model, game_data_loader, learning_rate)
-            else:
-                black_player.model.load_weights()
-        
-        if not export_game:
-            records.clear()
+    # if train_model:
+        # records = create_data_loader(records, game.state, batch_size)
+        # if white_player_type.name.startswith("PUCT") and "_" in white_player_type.name:
+        #     avg_loss = train_game(white_player.model, game_data_loader, learning_rate, batch_size)
+        # if black_player_type.name.startswith("PUCT") and "_" in  black_player_type.name:
+        #     if black_player_type.name != white_player_type.name:
+        #         avg_loss = train_game(black_player.model, game_data_loader, learning_rate, batch_size)
+        #     else:
+        #         black_player.model.load_weights()
 
-    if export_game:
-        export_game_records(records, game.state.value, game.board_size)
-        records.clear()
+    # if export_game:
+    #     export_game_records(records, game.state.value, game.board_size)
+    #     records.clear()
     
-    print(f"Game #{game_num} - White: {white_player_type.name}, Black: {black_player_type.name} - winning: {game.state.name}, steps: {moves_counter}" + (f", avg_loss: {avg_loss:.6f}" if train_model else ""), flush=True)
-    return game.state, moves_counter
+    print(f"Game #{game_num} - White: {white_player_type.name}, Black: {black_player_type.name} - winning: {game.state.name}, steps: {moves_counter}", flush=True)
+    return game.state, moves_counter, records, white_player.model, black_player.model
 
-def create_data_loader(records, winner):
+def update_winner(records, winner):
     records_list = [records[key] for key in records.keys()]
     for record in records_list:
         if record["winner"] is None:
             record["winner"] = winner
+    return records_list
 
+def create_data_loader(records: dict, batch_size):
+    records_list = list()
+    left_recs = copy.deepcopy(records)
+    for i, (key, val) in enumerate(records.items()):
+        if i < batch_size:
+            records_list.append(val)
+            del left_recs[key]
+        else:
+            break
     dataset = GameDataset(records_list)
-    return DataLoader(dataset, batch_size=1, shuffle=False)
-
-
+    return DataLoader(dataset, batch_size=batch_size, shuffle=False), left_recs
 
 def train_game(model:GameNetwork, data_loader, learning_rate):
     avg_loss = game_network.train(model, data_loader, val_loader=None, epochs=1, lr=learning_rate)
@@ -288,13 +310,16 @@ if __name__ == "__main__":
     start_time = datetime.now()
     print(f"Training started at: {start_time}", flush=True)
     
+    print("CUDA Available:", torch.cuda.is_available(), flush=True)
+    print("CUDA Device:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU", flush=True)    
+    
     num_of_games  = 100
     iteration     = 2*1000
     exploration   = 1.2
     learning_rate = 0.001
     train_model   = False
-    trained_player_types = [PlayerType.PUCTv1, 
-                            PlayerType.PUCTv1_1
+    trained_player_types = [PlayerType.PUCTv1_1, 
+                            PlayerType.PUCTv1_15
                             ]
     dynamic_player_color = trained_player_types[0] != trained_player_types[1] and False
     add_randomizion = not train_model and True
@@ -302,7 +327,7 @@ if __name__ == "__main__":
     board_size  = 5
     batch_size = 512
     use_gui         = False
-    
+
     export_game     = False
 
     print_config(num_of_games, iteration, exploration, learning_rate, train_model, trained_player_types, dynamic_player_color, add_randomizion, board_size, batch_size, use_gui, export_game)
@@ -311,6 +336,7 @@ if __name__ == "__main__":
 
     wins_counter = {}
     moves_counter = {}
+    batch_recs = {}
     for agent in elo.ratings.keys():
         wins_counter[agent] = 0
         moves_counter[agent] = 0
@@ -322,19 +348,30 @@ if __name__ == "__main__":
         white_player_name = trained_player_types[white_idx].name if dynamic_player_color else "White"
         black_player_name = trained_player_types[black_idx].name if dynamic_player_color else "Black"
 
-        winner, steps = main(game_num=(i + 1),
-                                     board_size=board_size,
-                                     batch_size=batch_size,
-                                     iteration=iteration,
-                                     exploration=exploration,
-                                     learning_rate=learning_rate,
-                                     use_gui=use_gui,
-                                     train_model=train_model,
-                                     export_game=export_game,
-                                     white_player_type = trained_player_types[white_idx],
-                                     black_player_type = trained_player_types[black_idx],
-                                     add_randomizion=add_randomizion)
+        winner, steps, game_rec, white_model, black_model = main(game_num=(i + 1),
+                                                                    board_size=board_size,
+                                                                    batch_size=batch_size,
+                                                                    iteration=iteration,
+                                                                    exploration=exploration,
+                                                                    learning_rate=learning_rate,
+                                                                    use_gui=use_gui,
+                                                                    train_model=train_model,
+                                                                    export_game=export_game,
+                                                                    white_player_type = trained_player_types[white_idx],
+                                                                    black_player_type = trained_player_types[black_idx],
+                                                                    add_randomizion=add_randomizion)
         
+        batch_recs = batch_recs | game_rec
+        if len(batch_recs) >= batch_size or i == (num_of_games - 1):
+            game_data_loader, batch_recs = create_data_loader(batch_recs, batch_size)
+            if trained_player_types[white_idx].name.startswith("PUCT") and "_" in trained_player_types[white_idx].name:
+                avg_loss = train_game(white_model, game_data_loader, learning_rate)
+            if trained_player_types[black_idx].name.startswith("PUCT") and "_" in  trained_player_types[black_idx].name:
+                if trained_player_types[black_idx].name != trained_player_types[white_idx].name:
+                    avg_loss = train_game(black_model, game_data_loader, learning_rate)
+                else:
+                    black_model.load_weights()
+         
         if winner == GameState.WhiteWon:
             rate_change_str = elo.update_ratings(winner=white_player_name, loser=black_player_name)
             wins_counter[white_player_name] += 1

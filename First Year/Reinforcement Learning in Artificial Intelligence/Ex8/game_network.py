@@ -89,17 +89,19 @@ class GameDataset(Dataset):
 
         for line in data:
             x = torch.tensor(line["state"], dtype=torch.float)
-            if type(line["move"]) is type(dict()):
+            if type(line["move"]) is dict:
                 y_policy = torch.zeros(75, dtype=torch.float)
                 for move, prob in line["move"].items():  
                     y_policy[move] = prob
                 am_i_win = line["winner"]
+                # am_i_win = 1 if line["winner"] == line["player"] else 0
             else:
+                print("ERROR")
                 y_policy = F.one_hot(torch.tensor(line["move"], dtype=torch.long), num_classes=75).float()
                 am_i_win = 1 if line["winner"] == line["player"] else 0
+                # am_i_win = line["winner"]
 
             y_value = torch.tensor(am_i_win, dtype=torch.float)
-            
             self.samples.append((x, y_value, y_policy))
 
     def __len__(self):

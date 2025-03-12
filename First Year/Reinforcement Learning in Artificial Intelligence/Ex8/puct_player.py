@@ -22,7 +22,8 @@ class PUCTPlayer:
         if self.training:
             blocking_move = self.get_blocking_move(game.clone())
             wining_move = self.get_wining_move(game.clone())
-            y_policy = [0 for _ in range((game.board_size ** 2) * 3)]
+            # y_policy = [0 for _ in range((game.board_size ** 2) * 3)]
+            y_policy = {i: 0 for i in range((game.board_size ** 2) * 3)}
             if wining_move:
                 y_policy[game.undecode(wining_move[0], wining_move[1])] = 1
                 return wining_move, 1, y_policy
