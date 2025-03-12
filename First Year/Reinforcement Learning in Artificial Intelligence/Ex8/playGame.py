@@ -110,20 +110,12 @@ def export_game_records(records, winner, size):
 class PlayerType(Enum):
     USER = 0
     PUCTv1 = 1
-    PUCTv1_1 = 1.1 # LR 0.001 exploration 1.2
-    PUCTv1_2 = 1.2 # LR 0.01 exploration 1.2
-    PUCTv1_3 = 1.3 # LR 0.001 exploration 2
-    PUCTv1_4 = 1.4 # LR 0.001 exploration 0.5
-    PUCTv1_5 = 1.5 # LR 0.01 exploration 1.2 iteration 500
-    PUCTv1_6 = 1.6 # LR 0.01 exploration 1.2 iteration 500 agains itself
-    PUCTv1_7 = 1.7 # LR 0.001 exploration 1.2 - -policy
-    PUCTv1_8 = 1.8 # LR 0.001 exploration 1.2 - -value
-    PUCTv1_9 = 1.9 # LR 0.001 exploration 1.2 - -policy -value
     PUCTv1_11 = 1.11 # LR 0.01 exploration 1.2 
-    PUCTv1_12 = 1.12 # LR 0.01 exploration 1.2 againts itself -value
+    PUCTv1_12 = 1.12 # LR 0.01 exploration 1.2 againts itself
     PUCTv1_13 = 1.13 # LR 0.001 exploration 1.2 
-    PUCTv1_14 = 1.14 # LR 0.001 exploration 1.2 againts itself -value
-    PUCTv1_15 = 1.15 # TEMP
+    PUCTv1_14 = 1.14 # LR 0.001 exploration 1.2 againts itself
+    PUCTv1_5 = 1.5 # LR 0.001 exploration 0.2 againts itself
+    PUCTv1_6 = 1.6 # LR 0.001 exploration 0.6 againts itself
 
     PUCTv2 = 2
     PUCTv2_1 = 2.1 # exploration 1.2 + 2k iter lr 0.001
@@ -313,16 +305,16 @@ if __name__ == "__main__":
     print("CUDA Available:", torch.cuda.is_available(), flush=True)
     print("CUDA Device:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU", flush=True)    
     
-    num_of_games  = 100
+    num_of_games  = 3000
     iteration     = 2*1000
-    exploration   = 1.2
+    exploration   = 0.6
     learning_rate = 0.001
-    train_model   = False
-    trained_player_types = [PlayerType.PUCTv1, 
-                            PlayerType.PUCTv1_15
+    train_model   = True
+    trained_player_types = [PlayerType.PUCTv1_6, 
+                            PlayerType.PUCTv1_6
                             ]
-    dynamic_player_color = trained_player_types[0] != trained_player_types[1] and False
-    add_randomizion = not train_model and True
+    dynamic_player_color = trained_player_types[0] != trained_player_types[1] and train_model
+    add_randomizion = not train_model
 
     board_size  = 5
     batch_size = 512
