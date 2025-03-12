@@ -318,7 +318,7 @@ if __name__ == "__main__":
     exploration   = 1.2
     learning_rate = 0.001
     train_model   = False
-    trained_player_types = [PlayerType.PUCTv1_1, 
+    trained_player_types = [PlayerType.PUCTv1, 
                             PlayerType.PUCTv1_15
                             ]
     dynamic_player_color = trained_player_types[0] != trained_player_types[1] and False
@@ -360,17 +360,17 @@ if __name__ == "__main__":
                                                                     white_player_type = trained_player_types[white_idx],
                                                                     black_player_type = trained_player_types[black_idx],
                                                                     add_randomizion=add_randomizion)
-        
-        batch_recs = batch_recs | game_rec
-        if len(batch_recs) >= batch_size or i == (num_of_games - 1):
-            game_data_loader, batch_recs = create_data_loader(batch_recs, batch_size)
-            if trained_player_types[white_idx].name.startswith("PUCT") and "_" in trained_player_types[white_idx].name:
-                avg_loss = train_game(white_model, game_data_loader, learning_rate)
-            if trained_player_types[black_idx].name.startswith("PUCT") and "_" in  trained_player_types[black_idx].name:
-                if trained_player_types[black_idx].name != trained_player_types[white_idx].name:
-                    avg_loss = train_game(black_model, game_data_loader, learning_rate)
-                else:
-                    black_model.load_weights()
+        if train_model:
+            batch_recs = batch_recs | game_rec
+            if len(batch_recs) >= batch_size or i == (num_of_games - 1):
+                game_data_loader, batch_recs = create_data_loader(batch_recs, batch_size)
+                if trained_player_types[white_idx].name.startswith("PUCT") and "_" in trained_player_types[white_idx].name:
+                    avg_loss = train_game(white_model, game_data_loader, learning_rate)
+                if trained_player_types[black_idx].name.startswith("PUCT") and "_" in  trained_player_types[black_idx].name:
+                    if trained_player_types[black_idx].name != trained_player_types[white_idx].name:
+                        avg_loss = train_game(black_model, game_data_loader, learning_rate)
+                    else:
+                        black_model.load_weights()
          
         if winner == GameState.WhiteWon:
             rate_change_str = elo.update_ratings(winner=white_player_name, loser=black_player_name)
