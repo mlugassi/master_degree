@@ -8,6 +8,10 @@ import csv
 import shutil
 from ultralytics import YOLO
 
+# os.environ['http_proxy'] = 'http://proxy-iil.intel.com:912'
+# os.environ['https_proxy'] = 'http://proxy-iil.intel.com:912'
+# os.environ['no_proxy'] = 'localhost,127.0.0.1'
+
 # Ensure script runs from its own directory
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -49,13 +53,15 @@ def save_annotations_yolo(annotations, output_txt):
         for label, x_center, y_center, width, height, scroll_number in annotations:
             file.write(f"{label} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}\n")
 
-def train_yolo(dataset_yaml, trained_model_path, epochs=10, learning_rate=0.001, optimizer='Adam'):
+def train_yolo(dataset_yaml, trained_model_path, epochs=10, learning_rate=0.001, optimizer='Adam', create_test_model=False):
     """Trains YOLOv8 using images from the specified directory and evaluates accuracy."""
     model_path = trained_model_path if os.path.exists(trained_model_path) else os.path.join(os.path.dirname(trained_model_path), "yolov8n.pt")
     model = YOLO(model_path)
     model.train(data=dataset_yaml, epochs=epochs, lr0=learning_rate, optimizer=optimizer, device='cuda' if torch.cuda.is_available() else 'cpu')
     model.val()
     model.save(trained_model_path)
+    if create_test_model:
+        model.save("test_model.pt")
 
 
 def prepare_data(input_dir, output_dir, labels_to_num: dict, train_precent=0.9):
@@ -116,8 +122,48 @@ def prepare_data(input_dir, output_dir, labels_to_num: dict, train_precent=0.9):
 
     return os.path.join(output_dir, 'dataset.yaml'), input_train_images, input_test_images
 
+def draw_bounding_boxes(image_path, csv_path, output_path):
+    """
+    Draws bounding boxes on the image based on detection results from a CSV file.
+    
+    Args:
+        image_path (str): Path to the image file.
+        csv_path (str): Path to the CSV file containing bounding box information.
+        output_path (str): Path to save the output image with bounding boxes drawn.
+    """
+    image = cv2.imread(image_path)
+    if image is None:
+        print(f"Error: Could not read image at {image_path}")
+        return
+    
+    with open(csv_path, mode='r') as file:
+        reader = csv.reader(file)
+        next(reader)
+        
+        for row in reader:
+            _, scroll_number, xmin, ymin, xmax, ymax, iou = row
+            xmin, ymin, xmax, ymax = map(int, [xmin, ymin, xmax, ymax])
+            
+            cv2.rectangle(image, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
+            
+            label = f"Scroll {scroll_number}"
+            cv2.putText(image, label, (xmin, ymin - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+    cv2.imwrite(output_path, image)
+    print(f"Saved image with bounding boxes at: {output_path}")
+
+
 def calculate_iou(box1, box2):
-    """Calculates the Intersection over Union (IoU) of two bounding boxes."""
+    """
+    Calculates the Intersection over Union (IoU) of two bounding boxes.
+    
+    Args:
+        box1 (tuple): (xmin, ymin, xmax, ymax) for first bounding box.
+        box2 (tuple): (xmin, ymin, xmax, ymax) for second bounding box.
+    
+    Returns:
+        float: IoU value between 0 and 1.
+    """
     x1 = max(box1[0], box2[0])
     y1 = max(box1[1], box2[1])
     x2 = min(box1[2], box2[2])
@@ -130,6 +176,7 @@ def calculate_iou(box1, box2):
     
     return intersection / union if union > 0 else 0
 
+
 def predict_process_bounding_boxes(image_path: str, output_csv: str) -> None:
     """
     Processes an image to detect bounding boxes around scroll segments.
@@ -140,7 +187,7 @@ def predict_process_bounding_boxes(image_path: str, output_csv: str) -> None:
     output_csv (str): Path to the output CSV file.
     """
 
-    model = YOLO("./YOLOv8/yolov8_trained.pt")  # Load YOLO model
+    model = YOLO("test_model.pt")  # Load YOLO model
     image = cv2.imread(image_path)
     if image is None:
         print(f"Error: Could not read image at {image_path}")
@@ -160,10 +207,10 @@ def predict_process_bounding_boxes(image_path: str, output_csv: str) -> None:
     # Sort by Euclidean distance from the top-left corner
     detected_boxes.sort(key=lambda b: np.sqrt(b[0]**2 + b[1]**2))
     
-    json_path = os.path.splitext(image_path)[0] + ".json"
+    label_path = os.path.join(image_path.lstrip(os.sep).split(os.sep)[0], image_path.lstrip(os.sep).split(os.sep)[1], "labels") + os.path.basename(image_path).split('.')[0] + ".txt"
     scroll_counter = 1
     for x1, y1, x2, y2, confidence in detected_boxes:
-        iou = calculate_iou((x1, y1, x2, y2), (0, 0, image.shape[1], image.shape[0])) if os.path.exists(json_path) else -1
+        iou = calculate_iou((x1, y1, x2, y2), (0, 0, image.shape[1], image.shape[0])) if os.path.exists(label_path) else -1
         bounding_boxes.append((os.path.basename(image_path), scroll_counter, int(x1), int(y1), int(x2), int(y2), round(iou, 2)))
         scroll_counter += 1
     
@@ -177,19 +224,31 @@ def predict_process_bounding_boxes(image_path: str, output_csv: str) -> None:
 
 # Example usage
 labels_to_num = {'scroll': 0}
-epochs=1
+epochs = 1
 learning_rate=0.001
 optimizer='Adam'
-output_dir = "./YOLOv8"
+output_dir = "YOLOv8"
 val_precent = 0.9
-model_output = os.path.join(output_dir, 'yolov8_trained.pt')
+version = 1
+model_output = os.path.join(output_dir, 'yolov8_trained_v' + str(version) + '.pt')
+input_model = model_output
+train_model = True
+test_model = True
+draw_boxes = True
 
 dataset_yaml, train_images, test_images = prepare_data(input_dir="./", output_dir=output_dir, labels_to_num=labels_to_num, train_precent=val_precent)
-# Train YOLO with images from specified 'train' directory
-train_yolo(dataset_yaml=dataset_yaml, trained_model_path=model_output, epochs=epochs, learning_rate=learning_rate, optimizer=optimizer)
+if train_model:
+    train_yolo(dataset_yaml=dataset_yaml, trained_model_path=model_output, epochs=epochs, learning_rate=learning_rate, optimizer=optimizer, create_test_model=test_model)
 
-train_prediction_path = os.path.join(output_dir, "prediction_train")
-os.makedirs(train_prediction_path, exist_ok=True)
+if test_model:
+    train_prediction_path = os.path.join(output_dir, "prediction_train")
+    os.makedirs(train_prediction_path, exist_ok=True)
 
-for img in train_images[:5]:
-    predict_process_bounding_boxes(os.path.join(output_dir, "train", "images", img), os.path.join(train_prediction_path, img.split('.')[0] + ".csv"))
+    for img in train_images:
+        image_path = os.path.join(output_dir, "train", "images", img)
+        csv_path = os.path.join(train_prediction_path, img.split('.')[0] + ".csv")
+        pred_output_img_path = os.path.join(output_dir, "prediction_train", "predicted_" + img)
+
+        predict_process_bounding_boxes(image_path, csv_path)
+        if draw_boxes:
+            draw_bounding_boxes(image_path, csv_path, pred_output_img_path)
