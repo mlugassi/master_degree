@@ -15,6 +15,41 @@ from ultralytics import YOLO
 # Ensure script runs from its own directory
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
+def calculate_mean_iou(csv_folder):
+    """
+    Reads all CSV files in a folder, extracts the 'iou' column, and calculates the mean IoU.
+    
+    Args:
+        csv_folder (str): Path to the folder containing CSV files.
+    
+    Returns:
+        float: The mean IoU across all files, or None if no valid values found.
+    """
+    iou_values = []
+
+    for file_name in os.listdir(csv_folder):
+        if file_name.endswith(".csv"):
+            csv_path = os.path.join(csv_folder, file_name)
+            with open(csv_path, mode='r', newline='') as file:
+                reader = csv.reader(file)
+                header = next(reader, None)  # Read the header
+                
+                if header and "iou" in header:
+                    iou_index = header.index("iou")
+                    for row in reader:
+                        try:
+                            iou_value = float(row[iou_index])
+                            if iou_value > 0:  # Ignore -1 values (invalid IoU)
+                                iou_values.append(iou_value)
+                        except ValueError:
+                            continue  # Skip non-numeric values
+
+    if iou_values:
+        mean_iou = sum(iou_values) / len(iou_values)
+        return mean_iou
+    else:
+        return None  # No valid IoU values found
+    
 def distance(p1, p2):
     return np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
@@ -30,22 +65,24 @@ def get_annotations_from_image(dir_path, image_name, labels_to_num: dict, print_
         data = json.load(file)
     
     annotations = []
+    annotations_t = []
     scroll_counter = 1
    
     image = cv2.imread(img_path)
     image_height, image_width = image.shape[:2]
     
-    for shape in sorted(data['shapes'], key=lambda s: distance(s['points'][0], s['points'][1])):  # Sort by Euclidean distance
+    boxes = list()
+    for shape in data['shapes']:
         if shape['shape_type'] == 'rectangle':
-            x1, y1 = shape['points'][0]
-            x2, y2 = shape['points'][1]
-            x_center = (x1 + x2) / 2
-            y_center = (y1 + y2) / 2
-            width = abs(x2 - x1)
-            height = abs(y2 - y1)
-            annotations.append((labels_to_num[shape['label']], x_center / image_width, y_center / image_height, width / image_width, height / image_height, scroll_counter))
+            x_0, y_0 = shape['points'][0]
+            x_1, y_1 = shape['points'][1]        
+            boxes.append((min(x_0, x_1), min(y_0, y_1), max(x_0, x_1), max(y_0, y_1), labels_to_num[shape['label']]))
+
+    for box in sorted(boxes, key=lambda b: distance((0,0), (b[0], b[1]))):  # Sort by Euclidean distance
+            annotations.append((box[4], box[0] / image_width, box[1] / image_height, box[2] / image_width, box[3] / image_height, scroll_counter))
+            annotations_t.append((labels_to_num[shape['label']], int(box[0]), int(box[1]), int(box[2]), int(box[3]), scroll_counter))
             scroll_counter += 1
-    return annotations
+    return annotations, annotations_t
 
 def save_annotations_yolo(annotations, output_txt):
     """Saves annotations in YOLO format (class_id x_center y_center width height)."""
@@ -93,12 +130,15 @@ def prepare_data(input_dir, output_dir, labels_to_num: dict, train_precent=0.9):
         split_idx = int(len(input_train_images) * train_precent)
         train_images = input_train_images[:split_idx]
         val_images = input_train_images[split_idx:]
-        
-        annotations = {img: get_annotations_from_image(os.path.join(input_dir, 'train') , img, labels_to_num) for img in input_train_images}
+
+        annotations = {img: get_annotations_from_image(os.path.join(input_dir, 'train') , img, labels_to_num)[0] for img in input_train_images}
+        annotations_t = {img: get_annotations_from_image(os.path.join(input_dir, 'train') , img, labels_to_num)[1] for img in input_train_images}
         
         for image_name in train_images:
             label_path = os.path.join(train_labels_dir, os.path.splitext(image_name)[0] + '.txt')
+            label_path_t = os.path.join(train_labels_dir, os.path.splitext(image_name)[0] + '_t.txt')
             save_annotations_yolo(annotations[image_name], label_path)
+            save_annotations_yolo(annotations_t[image_name], label_path_t)
             shutil.copy2(os.path.join(input_train_dir, image_name), os.path.join(train_images_dir, image_name))
         
         for image_name in val_images:
@@ -117,10 +157,10 @@ def prepare_data(input_dir, output_dir, labels_to_num: dict, train_precent=0.9):
         with open(dataset_yaml, 'w') as f:
             f.write(yaml_content)
     else:
-        input_train_images = [f for f in os.listdir(input_train_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
+        train_images = [f for f in os.listdir(input_train_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
         input_test_images = [f for f in os.listdir(input_test_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]        
 
-    return os.path.join(output_dir, 'dataset.yaml'), input_train_images, input_test_images
+    return os.path.join(output_dir, 'dataset.yaml'), train_images, input_test_images
 
 def draw_bounding_boxes(image_path, csv_path, output_path):
     """
@@ -176,6 +216,36 @@ def calculate_iou(box1, box2):
     
     return intersection / union if union > 0 else 0
 
+def get_label_boxes(label_path, image_width, image_height):
+    """
+    Loads normalized YOLO labels and converts them to pixel coordinates.
+
+    Args:
+        label_path (str): Path to the label file.
+        image_width (int): Image width in pixels.
+        image_height (int): Image height in pixels.
+
+    Returns:
+        list: List of bounding boxes in pixel coordinates [(xmin, ymin, xmax, ymax)].
+    """
+    if not os.path.exists(label_path):
+        return []
+
+    boxes = dict()
+    scroll_num = 1
+    with open(label_path, "r") as file:
+        for line in file.readlines():
+            parts = line.strip().split()
+            if len(parts) < 5:
+                continue
+            _, x_min, y_min, x_max, y_max = map(float, parts)
+            x_min = int(x_min * image_width)
+            y_min = int(y_min * image_height)
+            x_max = int(x_max * image_width)
+            y_max = int(y_max * image_height)
+            boxes[scroll_num] = (x_min, y_min, x_max, y_max)
+            scroll_num += 1
+    return boxes
 
 def predict_process_bounding_boxes(image_path: str, output_csv: str) -> None:
     """
@@ -189,6 +259,8 @@ def predict_process_bounding_boxes(image_path: str, output_csv: str) -> None:
 
     model = YOLO("test_model.pt")  # Load YOLO model
     image = cv2.imread(image_path)
+    image_height, image_width = image.shape[:2]
+
     if image is None:
         print(f"Error: Could not read image at {image_path}")
         return
@@ -201,17 +273,19 @@ def predict_process_bounding_boxes(image_path: str, output_csv: str) -> None:
         if result.boxes is None:
             continue
         for box in result.boxes.data:
-            x1, y1, x2, y2, confidence, class_id = box.tolist()
-            detected_boxes.append((x1, y1, x2, y2, confidence))
+            x_min, y_min, x_max, y_max, confidence, class_id = box.tolist()
+            detected_boxes.append((x_min, y_min, x_max, y_max, confidence))
     
     # Sort by Euclidean distance from the top-left corner
-    detected_boxes.sort(key=lambda b: np.sqrt(b[0]**2 + b[1]**2))
+    detected_boxes.sort(key=lambda b: distance((b[0], b[1]), (0, 0)))
     
-    label_path = os.path.join(image_path.lstrip(os.sep).split(os.sep)[0], image_path.lstrip(os.sep).split(os.sep)[1], "labels") + os.path.basename(image_path).split('.')[0] + ".txt"
+    label_path = os.path.join(image_path.lstrip(os.sep).split(os.sep)[0], image_path.lstrip(os.sep).split(os.sep)[1], "labels", os.path.basename(image_path).split('.')[0] + ".txt")
+    label_boxes = get_label_boxes(label_path, image_width, image_height)
     scroll_counter = 1
-    for x1, y1, x2, y2, confidence in detected_boxes:
-        iou = calculate_iou((x1, y1, x2, y2), (0, 0, image.shape[1], image.shape[0])) if os.path.exists(label_path) else -1
-        bounding_boxes.append((os.path.basename(image_path), scroll_counter, int(x1), int(y1), int(x2), int(y2), round(iou, 2)))
+
+    for x_min, y_min, x_max, y_max, confidence in detected_boxes:
+        iou = calculate_iou((x_min, y_min, x_max, y_max), label_boxes[scroll_counter]) if scroll_counter in label_boxes else -1
+        bounding_boxes.append((os.path.basename(image_path), scroll_counter, int(x_min), int(y_min), int(x_max), int(y_max), round(iou, 2)))
         scroll_counter += 1
     
     # Save bounding boxes to CSV
@@ -232,8 +306,8 @@ val_precent = 0.9
 version = 1
 model_output = os.path.join(output_dir, 'yolov8_trained_v' + str(version) + '.pt')
 input_model = model_output
-train_model = True
-test_model = True
+train_model = False
+test_model = False
 draw_boxes = True
 
 dataset_yaml, train_images, test_images = prepare_data(input_dir="./", output_dir=output_dir, labels_to_num=labels_to_num, train_precent=val_precent)
@@ -247,8 +321,31 @@ if test_model:
     for img in train_images:
         image_path = os.path.join(output_dir, "train", "images", img)
         csv_path = os.path.join(train_prediction_path, img.split('.')[0] + ".csv")
-        pred_output_img_path = os.path.join(output_dir, "prediction_train", "predicted_" + img)
-
         predict_process_bounding_boxes(image_path, csv_path)
         if draw_boxes:
-            draw_bounding_boxes(image_path, csv_path, pred_output_img_path)
+            draw_imgs_dir_path = os.path.join(train_prediction_path, "images")
+            os.makedirs(draw_imgs_dir_path, exist_ok=True)
+            draw_bounding_boxes(image_path, csv_path, os.path.join(draw_imgs_dir_path, "predicted_" + img))
+
+
+    test_prediction_path = os.path.join(output_dir, "prediction_test")
+    os.makedirs(test_prediction_path, exist_ok=True)
+
+    for img in test_images:
+        image_path = os.path.join(output_dir, "test", "images", img)
+        csv_path = os.path.join(test_prediction_path, img.split('.')[0] + ".csv")
+        predict_process_bounding_boxes(image_path, csv_path)
+        if draw_boxes:
+            draw_imgs_dir_path = os.path.join(test_prediction_path, "images")
+            os.makedirs(draw_imgs_dir_path, exist_ok=True)
+            draw_bounding_boxes(image_path, csv_path, os.path.join(draw_imgs_dir_path, "predicted_" + img))
+
+mean_iou_train = calculate_mean_iou(os.path.join(output_dir, "prediction_train"))
+mean_iou_test = calculate_mean_iou(os.path.join(output_dir, "prediction_test"))
+print(f"Mean Train IoU: {mean_iou_train:.4f}")
+print(f"Mean Test IoU: {mean_iou_test:.4f}")
+try:
+    shutil.rmtree("runs")
+    print(f"Deleted directory: runs/")
+except FileNotFoundError:
+    print("Directory does not exist.")
