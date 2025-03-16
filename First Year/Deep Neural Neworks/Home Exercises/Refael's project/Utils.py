@@ -15,9 +15,10 @@ import torchvision
 import gzip
 import shutil
 import re
+import csv
 from clearml import Task
-import time
-task_name = f"Project_{time.now().strftime('%Y%m%d_%H%M%S')}"
+from datetime import datetime
+task_name = f"Project_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 task = Task.init(project_name="DNN", task_name=task_name)
 
 
@@ -79,7 +80,6 @@ def merge_and_decompress_pth(input_file):
 
     print(f"Reconstructed file saved as {input_file}")
 
-# פונקציה לחישוב IOU בין שתי תיבות חוסמות
 def calculate_iou(box1, box2):
     x1, y1, x2, y2 = box1
     x1g, y1g, x2g, y2g = box2
@@ -98,45 +98,104 @@ def calculate_iou(box1, box2):
 
     return intersection / union if union > 0 else 0
 
-# נתיבים לתמונות ואנוטציות
-labelme_dir = "./train"  # תיקיית קבצי ה-JSON
-yolo_labels_dir = "labels"  # תיקיית היעד לקבצי YOLO
+class Models:
+    faster_rcnn     = "./faster_rcnn"
+    faster_rcnn_1   = "./faster_rcnn.1.pth"
+    faster_rcnn_2   = "./faster_rcnn.2.pth"
+    faster_rcnn_3   = "./faster_rcnn.3.pth"
+    faster_rcnn_4   = "./faster_rcnn.4.pth"
+    faster_rcnn_5   = "./faster_rcnn.5.pth"
+    faster_rcnn_6   = "./faster_rcnn.6.pth"
+    retinanet       = "./retinanet"
+    retinanet_1     = "./retinanet.1.pth"
+    retinanet_2     = "./retinanet.2.pth"
+    retinanet_3     = "./retinanet.3.pth"
+    retinanet_4     = "./retinanet.4.pth"
+    retinanet_5     = "./retinanet.5.pth"
 
-# צור את תיקיית היעד אם היא לא קיימת
-os.makedirs(yolo_labels_dir, exist_ok=True)
+def load_model(model_path: str):
+    """טוען את מודל ה- RetinaNet המאומן."""
+    model = torch.load(model_path, map_location=torch.device('cpu'))
+    model.eval()
+    return model
 
-def convert_labelme_to_yolo(json_file, output_dir, img_width, img_height):
-    with open(json_file, 'r', encoding="utf-8") as f:
-        data = json.load(f)
+def detect_bounding_boxes(model, image_path: str):
+    model.eval()  # מצב הערכה (ללא גרדיאנטים)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+        
+    # טעינת תמונה
+    transform = T.Compose([T.ToTensor()])
+    image = Image.open(image_path).convert("RGB")
+    image_tensor = transform(image).unsqueeze(0).to(device)
 
-    labelme_shapes = data["shapes"]
-    yolo_lines = []
+    # הפעלת המודל
+    with torch.no_grad():
+        predictions = model(image_tensor)
     
-    for shape in labelme_shapes:
-        points = shape["points"]
-        x_min = min([p[0] for p in points])
-        y_min = min([p[1] for p in points])
-        x_max = max([p[0] for p in points])
-        y_max = max([p[1] for p in points])
+    boxes = predictions[0]['boxes'].cpu().numpy().astype(int)
 
-        # המרה לקואורדינטות מנורמלות
-        x_center = ((x_min + x_max) / 2) / img_width
-        y_center = ((y_min + y_max) / 2) / img_height
-        width = (x_max - x_min) / img_width
-        height = (y_max - y_min) / img_height
+    return sorted(boxes, key=lambda box: (box[0]**2 + box[1]**2)**0.5)
 
-        yolo_lines.append(f"0 {x_center} {y_center} {width} {height}")
+def create_fasterrcnn_model(pretrained):
+    
+    from torchvision.models.detection import fasterrcnn_resnet50_fpn
+    model = fasterrcnn_resnet50_fpn(pretrained=pretrained)
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    model.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(in_features, num_classes=2)
+    return model
 
-    # שמירת קובץ האנוטציה
-    txt_filename = os.path.join(output_dir, os.path.basename(json_file).replace(".json", ".txt"))
-    with open(txt_filename, "w") as out_file:
-        out_file.write("\n".join(yolo_lines))
+def create_retinanet_model(pretrained, num_classes=2):
+    from torchvision.models.detection import retinanet_resnet50_fpn
+    model = retinanet_resnet50_fpn(pretrained_backbone=pretrained,  num_classes=num_classes)
 
-# המרת כל קובצי ה-JSON
-json_files = glob.glob(os.path.join(labelme_dir, "*.json"))
-for json_file in json_files:
-    # גודל תמונה (צריך להיות נכון לכל התמונות)
-    img_width, img_height = 640, 640  # שנה לפי הצורך
-    convert_labelme_to_yolo(json_file, yolo_labels_dir, img_width, img_height)
+    return model
 
-print("המרת האנוטציות הסתיימה!")
+def predict_process_bounding_boxes(image_path: str, output_csv: str, model_name=Models.faster_rcnn_1) -> None:
+    """
+    מזהה תיבות חוסמות בתמונה, ממספר אותן ושומר את התוצאות ב-CSV.
+    """
+    pretrained = False
+    if model_name.startswith(Models.faster_rcnn):
+        model = create_fasterrcnn_model(pretrained)
+    elif model_name.startswith(Models.retinanet):
+        model = create_retinanet_model(pretrained)
+
+    model.load_state_dict(torch.load(model_name, map_location=torch.device("cpu")))
+    boxes = detect_bounding_boxes(model, image_path)
+    
+    with open(output_csv, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["image_name", "scroll_number", "xmin", "ymin", "xmax", "ymax", "iou"])
+        for i, (xmin, ymin, xmax, ymax) in enumerate(boxes):
+            writer.writerow([os.path.basename(image_path), i+1, xmin, ymin, xmax, ymax, -1])
+
+def draw_bounding_boxes(image_path, csv_path, output_path):
+    """
+    Draws bounding boxes on the image based on detection results from a CSV file.
+    
+    Args:
+        image_path (str): Path to the image file.
+        csv_path (str): Path to the CSV file containing bounding box information.
+        output_path (str): Path to save the output image with bounding boxes drawn.
+    """
+    image = cv2.imread(image_path)
+    if image is None:
+        print(f"Error: Could not read image at {image_path}")
+        return
+    
+    with open(csv_path, mode='r') as file:
+        reader = csv.reader(file)
+        next(reader)
+        
+        for row in reader:
+            _, scroll_number, xmin, ymin, xmax, ymax, iou = row
+            xmin, ymin, xmax, ymax = map(int, [xmin, ymin, xmax, ymax])
+            
+            cv2.rectangle(image, (xmin, ymin), (xmax, ymax), (0, 255, 0), 2)
+            
+            label = f"Scroll {scroll_number}"
+            cv2.putText(image, label, (xmin, ymin - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+    cv2.imwrite(output_path, image)
+    print(f"Saved image with bounding boxes at: {output_path}")
