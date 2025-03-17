@@ -8,12 +8,12 @@ import csv
 import shutil
 from ultralytics import YOLO
 from clearml import Task, Logger
-import glob
+from datetime import datetime
 
 
-os.environ['http_proxy'] = 'http://proxy-iil.intel.com:912'
-os.environ['https_proxy'] = 'http://proxy-iil.intel.com:912'
-os.environ['no_proxy'] = 'localhost,127.0.0.1'
+# os.environ['http_proxy'] = 'http://proxy-iil.intel.com:912'
+# os.environ['https_proxy'] = 'http://proxy-iil.intel.com:912'
+# os.environ['no_proxy'] = 'localhost,127.0.0.1'
 
 # Ensure script runs from its own directory
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -62,7 +62,7 @@ def get_annotations_from_image(dir_path, image_name, labels_to_num: dict, print_
     img_path = os.path.join(dir_path, "images", image_name)
     if not os.path.exists(annotation_path):
         if print_warning:
-            print(f"Warning: No annotation file found for {annotation_path}")
+            print(f"Warning: No annotation file found for {annotation_path}", flush=True)
         return []
     
     with open(annotation_path, 'r') as file:
@@ -94,10 +94,10 @@ def save_annotations_yolo(annotations, output_txt):
 
 def train_yolo(dataset_yaml, trained_model_path, epochs, learning_rate, optimizer, batch_size, mosaic_augmentation, image_size, pretrained, create_test_model):
     """Trains YOLOv8 using images from the specified directory and evaluates accuracy."""
-    model_path = trained_model_path if os.path.exists(trained_model_path) else os.path.join(os.path.dirname(trained_model_path), "yolov8n.pt")
+    model_path = trained_model_path if os.path.exists(trained_model_path) else os.path.join(os.path.dirname(trained_model_path), "yolov8l.pt")
     model = YOLO(model_path)
 
-    print("\n🔎 Running training...")
+    print("\n🔎 Running training...", flush=True)
     # Train the model
     model.train(data=dataset_yaml, epochs=epochs, lr0=learning_rate, optimizer=optimizer, 
                 batch=batch_size, mosaic=mosaic_augmentation, imgsz=image_size, pretrained=pretrained,
@@ -180,7 +180,7 @@ def draw_bounding_boxes(image_path, csv_path, output_path):
     """
     image = cv2.imread(image_path)
     if image is None:
-        print(f"Error: Could not read image at {image_path}")
+        print(f"Error: Could not read image at {image_path}", flush=True)
         return
     
     with open(csv_path, mode='r') as file:
@@ -197,7 +197,7 @@ def draw_bounding_boxes(image_path, csv_path, output_path):
             cv2.putText(image, label, (xmin, ymin - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
     cv2.imwrite(output_path, image)
-    print(f"Saved image with bounding boxes at: {output_path}")
+    print(f"Saved image with bounding boxes at: {output_path}", flush=True)
 
 def calculate_iou(box1, box2):
     x1 = max(box1[0], box2[0])
@@ -272,7 +272,7 @@ def predict_process_bounding_boxes(image_path: str, output_csv: str) -> None:
     image_height, image_width = image.shape[:2]
 
     if image is None:
-        print(f"Error: Could not read image at {image_path}")
+        print(f"Error: Could not read image at {image_path}", flush=True)
         return
     
     results = model.predict(image, augment=True, agnostic_nms=True)
@@ -304,9 +304,15 @@ def predict_process_bounding_boxes(image_path: str, output_csv: str) -> None:
         writer.writerow(['image_name', 'scroll_number', 'xmin', 'ymin', 'xmax', 'ymax', 'iou'])
         writer.writerows(bounding_boxes)
     
-    print(f"Bounding boxes saved to {output_csv}")
+    print(f"Bounding boxes saved to {output_csv}", flush=True)
 
 if __name__ == "__main__":
+    start_time = datetime.now()
+    print(f"Training started at: {start_time}", flush=True)
+
+    print("CUDA Available:", torch.cuda.is_available(), flush=True)
+    print("CUDA Device:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU", flush=True)    
+
     labels_to_num = {'scroll': 0}
 
     config = {
@@ -330,10 +336,10 @@ if __name__ == "__main__":
     config["input_dir"] = f"./dataset_q{config['question']}/"
 
     # Print configuration details
-    print("\n############# MODEL CONFIGURATION ################")
+    print("\n############# MODEL CONFIGURATION ################", flush=True)
     for key, value in config.items():
-        print(f"###### {key}: {value}")
-    print("############################################")
+        print(f"###### {key}: {value}", flush=True)
+    print("############################################", flush=True)
 
     task = Task.init(project_name="DNN - Final Project", task_name=f"YOLO8_Q{config['question']}v{config['version']}") 
     task.connect(config)  # Log parameters to Configuration
@@ -355,25 +361,29 @@ if __name__ == "__main__":
 
     try:
         shutil.rmtree("runs")
-        print(f"Deleted directory: runs/")
+        print(f"Deleted directory: runs/", flush=True)
     except FileNotFoundError:
-        print("Directory does not exist.")
+        print("Directory does not exist.", flush=True)
 
     # Print configuration details
-    print("\n############# MODEL CONFIGURATION ################")
+    print("\n############# MODEL CONFIGURATION ################", flush=True)
     for key, value in config.items():
-        print(f"###### {key}: {value}")
-    print("############################################")
+        print(f"###### {key}: {value}", flush=True)
+    print("############################################", flush=True)
     if config['train_model']:
-        print("\n############# MODEL RESULTS ################")
-        print(f"##### Box Loss: {model_results.box.map50:.4f}")
-        print(f"##### Precision: {model_results.results_dict['metrics/precision(B)']:.4f}")
-        print(f"##### Recall: {model_results.results_dict['metrics/recall(B)']:.4f}")
-        print(f"##### mAP@0.5: {model_results.results_dict['metrics/mAP50(B)']:.4f}")
-        print(f"##### mAP@0.5:0.95: {model_results.results_dict['metrics/mAP50-95(B)']:.4f}")
-        print(f"##### Fitness: {model_results.results_dict['fitness']:.4f}")
+        print("\n############# MODEL RESULTS ################", flush=True)
+        print(f"##### Box Loss: {model_results.box.map50:.4f}", flush=True)
+        print(f"##### Precision: {model_results.results_dict['metrics/precision(B)']:.4f}", flush=True)
+        print(f"##### Recall: {model_results.results_dict['metrics/recall(B)']:.4f}", flush=True)
+        print(f"##### mAP@0.5: {model_results.results_dict['metrics/mAP50(B)']:.4f}", flush=True)
+        print(f"##### mAP@0.5:0.95: {model_results.results_dict['metrics/mAP50-95(B)']:.4f}", flush=True)
+        print(f"##### Fitness: {model_results.results_dict['fitness']:.4f}", flush=True)
     if config['test_model']:
-        print("\n############# TEST RESULTS ################")
-        print(f"##### Mean Train IoU: {mean_iou_train if mean_iou_train is not None else 0:.4f}")
-        print(f"##### Mean Test IoU: {mean_iou_test if mean_iou_test is not None else 0:.4f}")
-        print("############################################")    
+        print("\n############# TEST RESULTS ################", flush=True)
+        print(f"##### Mean Train IoU: {mean_iou_train if mean_iou_train is not None else 0:.4f}", flush=True)
+        print(f"##### Mean Test IoU: {mean_iou_test if mean_iou_test is not None else 0:.4f}", flush=True)
+        print("############################################", flush=True)    
+
+    end_time = datetime.now()
+    print(f"\nTraining completed at: {end_time}", flush=True)
+    print(f"Total training time: {end_time - start_time}", flush=True)        

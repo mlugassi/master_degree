@@ -20,4 +20,4 @@ source ~/.bashrc  # Ensure conda is initialized
 conda activate test1
 
 # Run the Python script
-/home/michaellu/.conda/envs/test1/bin/python3.11 "/home/michaellu/master_degree/First Year/Deep Neural Neworks/Home Exercises/Final Project/final_proj_part_a.py"
+/home/michaellu/.conda/envs/test1/bin/python3.11 "/home/michaellu/master_degree/First Year/Deep Neural Neworks/Home Exercises/Final Project/projectDL2025_q1.py"
