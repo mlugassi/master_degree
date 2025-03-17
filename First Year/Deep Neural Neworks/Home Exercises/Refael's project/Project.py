@@ -43,10 +43,17 @@ class ScrollDataset(Dataset):
         return image, target
     
 # פונקציה להערכת המודל על סט הבדיקה
-def evaluate_model(model, test_images_path, labelme_annotations_path, logger, iou_threshold=0.5):
+def evaluate_model(model, test_images_path, labelme_annotations_path, results = "./results", model_name = None, iou_threshold=0.5, last_epoch=False):
     model.eval()  # מצב הערכה (ללא גרדיאנטים)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
+
+    if last_epoch:
+        csv_dir_res = f"{results}/csv"
+        img_dir_res = f"{results}/images"
+        model_name = model_name.replace("./","")
+        os.makedirs(csv_dir_res, exist_ok=True)
+        os.makedirs(img_dir_res, exist_ok=True)
 
     transform = T.Compose([T.ToTensor()])
     total_iou = []
@@ -55,8 +62,15 @@ def evaluate_model(model, test_images_path, labelme_annotations_path, logger, io
     image_files = glob.glob(os.path.join(test_images_path, "*.jpg"))
     
     for img_path in image_files:
-        img_name = os.path.basename(img_path).replace(".jpg", ".json")
-        annotation_path = os.path.join(labelme_annotations_path, img_name)
+        if last_epoch:
+            img_name = os.path.basename(img_path)
+            csv_path = f"{csv_dir_res}/" + img_name.replace(".jpg",f".{model_name}.csv")
+            img_output_path = f"{img_dir_res}/" + img_name.replace(".jpg",f".{model_name}.jpg")
+            predict_process_bounding_boxes(img_path, csv_path)
+            draw_bounding_boxes(img_path, csv_path, img_output_path)
+
+        json_name = os.path.basename(img_path).replace(".jpg", ".json")
+        annotation_path = os.path.join(labelme_annotations_path, json_name)
 
         if not os.path.exists(annotation_path):
             # print(f"Missing annotation for {img_path}, skipping.")
@@ -98,117 +112,23 @@ def evaluate_model(model, test_images_path, labelme_annotations_path, logger, io
     # תוצאה סופית
     overall_iou = np.mean(total_iou) if total_iou else 0
     print(f"\nFinal Model IOU Score - {test_images_path}: {overall_iou:.4f}")
-    
-    logger.report_scalar(title="IOU", series=f"{test_images_path}", value=overall_iou, iteration=epoch+1)
 
     return overall_iou
 
-def predict_and_generate_json(model, image_folder, output_json_folder, confidence_threshold=0.5):
-    """
-    מקבל תיקיית תמונות, מריץ עליהן את המודל ומייצר קובצי JSON בפורמט של LabelMe.
-    
-    :param model: מודל Faster R-CNN מאומן
-    :param image_folder: תיקיית התמונות
-    :param output_json_folder: תיקייה לשמירת קובצי ה-JSON
-    :param confidence_threshold: סף ביטחון לניבויים (ברירת מחדל 0.5)
-    """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-    model.eval()
-    
-    transform = T.Compose([T.ToTensor()])
-    
-    os.makedirs(output_json_folder, exist_ok=True)
-    
-    for img_filename in os.listdir(image_folder):
-        if not img_filename.lower().endswith(('.jpg', '.jpeg', '.png')):
-            continue
-        
-        img_path = os.path.join(image_folder, img_filename)
-        image = Image.open(img_path).convert("RGB")
-        image_tensor = transform(image).unsqueeze(0).to(device)
-        
-        with torch.no_grad():
-            prediction = model(image_tensor)
-        
-        predicted_boxes = prediction[0]['boxes'].cpu().numpy()
-        predicted_scores = prediction[0]['scores'].cpu().numpy()
-        
-        labelme_data = {
-            "version": "4.5.9",
-            "flags": {},
-            "shapes": [],
-            "imagePath": img_filename,
-            "imageData": None,
-            "imageHeight": image.height,
-            "imageWidth": image.width
-        }
-        
-        for box, score in zip(predicted_boxes, predicted_scores):
-            if score < confidence_threshold:
-                continue
-            
-            x1, y1, x2, y2 = box
-            shape = {
-                "label": "scroll_segment",
-                "points": [[x1, y1], [x2, y2]],
-                "group_id": None,
-                "shape_type": "rectangle",
-                "flags": {}
-            }
-            labelme_data["shapes"].append(shape)
-        
-        json_filename = os.path.splitext(img_filename)[0] + ".json"
-        json_path = os.path.join(output_json_folder, json_filename)
-        
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(labelme_data, f, indent=4, ensure_ascii=False)
-        
-        print(f"Saved: {json_path}")
+# faster_rcnn
+# 1. batch:2, lr: 0.0001, epochs: 5,0000,  pretrained: True
+# 2. batch:1, lr: 0.0001, epochs: 5,0000,  pretrained: True
+# 3. batch:2, lr: 0.0001, epochs: 5,0000,  pretrained: False
+# 4. batch:2, lr: 0.001,  epochs: 5,0000,  pretrained: True
+# 5. batch:2, lr: 0.0001, epochs: 10,0000, pretrained: True
 
-def create_fasterrcnn_model(pretrained):
-    
-    from torchvision.models.detection import fasterrcnn_resnet50_fpn
-    model = fasterrcnn_resnet50_fpn(pretrained=pretrained)
-    in_features = model.roi_heads.box_predictor.cls_score.in_features
-    model.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(in_features, num_classes=2)
-    return model
+# retinanet
+# 1. batch:2, lr: 0.0001, epochs: 5,0000,  pretrained: True
+# 2. batch:1, lr: 0.0001, epochs: 5,0000,  pretrained: True
+# 3. batch:2, lr: 0.0001, epochs: 5,0000,  pretrained: False
+# 4. batch:2, lr: 0.001,  epochs: 5,0000,  pretrained: True
+# 5. batch:2, lr: 0.0001, epochs: 10,0000, pretrained: True
 
-def create_yolo_model(pretrained):
-    
-    from ultralytics import YOLO
-    if pretrained:
-        model = YOLO("yolov8n.pt")  # ניתן להחליף לגרסאות אחרות כמו 'yolov8m.pt', 'yolov8x.pt' וכו'
-    else: 
-        model = YOLO(Models.yolo)
-
-    return model
-
-def create_retinanet_model(pretrained, num_classes=2):
-    from torchvision.models.detection import retinanet_resnet50_fpn
-    model = retinanet_resnet50_fpn(pretrained_backbone=pretrained,  num_classes=num_classes)
-
-    return model
-
-def create_efficientdet_model(pretrained):
-
-    from effdet import get_efficientdet_config, EfficientDet
-
-    config = get_efficientdet_config("tf_efficientdet_d0")
-    model = EfficientDet(config)
-    return model
-
-class Models:
-    faster_rcnn     = "./faster_rcnn.2.pth"
-    yolo            = "./yolo.pth"
-    retinanet       = "./retinanet.1.pth"
-    efficientdet    = "./efficientdet"
-
-# 1. batch:2, lr: 0.0001, epochs: 5,0000, pretrained: True
-# 2. batch:1, lr: 0.0001, epochs: 5,0000, pretrained: True
-# 3. batch:2, lr: 0.0001, epochs: 5,0000, pretrained: False
-# 4. batch:2, lr: 0.001,  epochs: 5,0000, pretrained: True
-# 5. batch:1, lr: 0.0001, epochs: 10,0000, pretrained: True
 
 if __name__ == "__main__":
     # inputs
@@ -216,10 +136,24 @@ if __name__ == "__main__":
     json_dir = "train"  # Path to LabelMe JSON files
     img_dir = "train"  # Path to images
     num_classes = 2  # Background + scroll segment
-    batch = 2
-    model_name = Models.faster_rcnn
-    lr = 0.0001
-    num_epochs = 5*10
+    # batch = 2
+    # model_name = Models.retinanet
+    # lr = 0.0001
+    # num_epochs = 10*1000
+    # image_path = "./test/M41139-1-C.jpg"
+    # predict_process_bounding_boxes(image_path, "res.csv")
+    # model_name, batch, lr, num_epochs, pretrained = Models.faster_rcnn_1, 2, 0.0001, 3*1000, True  # --> 15321
+    # model_name, batch, lr, num_epochs, pretrained = Models.faster_rcnn_2, 1, 0.0001, 3*1000, True  # --> 15333
+    # model_name, batch, lr, num_epochs, pretrained = Models.faster_rcnn_3, 2, 0.0001,  3*1000, False # --> 15326
+    # model_name, batch, lr, num_epochs, pretrained = Models.faster_rcnn_4, 2, 0.001,  3*1000, True  # --> 15324
+    # model_name, batch, lr, num_epochs, pretrained = Models.faster_rcnn_5, 2, 0.0001, 6*1000, True  # --> 15325
+    model_name, batch, lr, num_epochs, pretrained = Models.faster_rcnn_6, 1, 0.0001, 10*1000, True  # --> 15336
+    # model_name, batch, lr, num_epochs, pretrained = Models.retinanet_2,   2, 0.0001, 3*1000, True  # --> 15327
+    # model_name, batch, lr, num_epochs, pretrained = Models.retinanet_1,   1, 0.0001, 3*1000, True  # --> 15328
+    # model_name, batch, lr, num_epochs, pretrained = Models.retinanet_3,   2, 0.0001, 3*1000, False # --> 15329
+    # model_name, batch, lr, num_epochs, pretrained = Models.retinanet_4,   2, 0.001,  3*1000, True  # --> 15330
+    # model_name, batch, lr, num_epochs, pretrained = Models.retinanet_5,   2, 0.0001, 6*1000, True  # --> 15331
+
 
     dataset = ScrollDataset(json_dir, img_dir)
     dataloader = DataLoader(dataset, batch_size=batch, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
@@ -230,18 +164,20 @@ if __name__ == "__main__":
     elif glob.glob(f"{model_name}.part*.gz"):
         merge_and_decompress_pth(model_name)
     
-    pretrained = False
-    if not os.path.exists(model_name):
-        pretrained = True
+    if pretrained not in [True, False]:
+        if os.path.exists(model_name):
+            pretrained = False
+        else:
+            pretrained = True
     
     params = {
         "batch": batch,
         "epochs": num_epochs,
         "learning_rate": lr,
         "model_name": model_name,
-        "pretrained": pretrained
+        "pretrained": pretrained,
+        "device": str(device)
     }
-    task = Task.init(project_name="DNN", task_name=f"Project")
     task.connect(params)
     logger = task.get_logger()
 
@@ -250,19 +186,16 @@ if __name__ == "__main__":
         print(f"# {key}: {params[key]}")
     print("###########################################")
 
-    if model_name == Models.faster_rcnn:
+    if model_name.startswith(Models.faster_rcnn):
         model = create_fasterrcnn_model(pretrained)
-    elif model_name == Models.yolo:
-        model = create_yolo_model(pretrained)
-    elif model_name == Models.retinanet:
+    elif model_name.startswith(Models.retinanet):
         model = create_retinanet_model(pretrained, num_classes)
-    elif model_name == Models.efficientdet:
-        model = create_efficientdet_model(pretrained)
     else:
-        pass
+        print("Error: Not found model_name:", model_name)
+        exit(1)
     
-    # Load pre-trained Faster R-CNN
-    if not pretrained:
+    # Load pre-trained
+    if not pretrained and os.path.isfile(model_name):
         model.load_state_dict(torch.load(model_name))
 
     # Training loop
@@ -281,18 +214,26 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
         print(f"Epoch {epoch+1}, Loss: {loss.item():.4f}")
+        logger.report_scalar(title="Loss", series="Train", value=loss.item(), iteration=epoch+1)
 
-    # Save trained model
+        # Save trained model
+        if epoch % 100 == 0:
+            torch.save(model.state_dict(), model_name)
+            print(f"Model {model_name} saved!")
+
+            with torch.no_grad():
+                iou_train = evaluate_model(model=model, test_images_path="train",  labelme_annotations_path="train", model_name=model_name)
+                iou_test  = evaluate_model(model=model, test_images_path="test",   labelme_annotations_path="test",  model_name=model_name)
+                logger.report_scalar(title="IOU", series="Train", value=iou_train, iteration=epoch)
+                logger.report_scalar(title="IOU", series="Test",  value=iou_test,  iteration=epoch)
+            model.train()
+
     torch.save(model.state_dict(), model_name)
-    print("Model saved!")
-
-    # הערכת המודל על סט הבדיקה
+    print(f"Model {model_name} saved!")
     with torch.no_grad():
-        evaluate_model(model, "train",  "train",    logger)
-        evaluate_model(model, "test",   "test",     logger)
+        iou_train = evaluate_model(model=model, test_images_path="train",  labelme_annotations_path="train", model_name=model_name, last_epoch=True)
+        iou_test  = evaluate_model(model=model, test_images_path="test",   labelme_annotations_path="test",  model_name=model_name, last_epoch=True)
+        logger.report_scalar(title="IOU", series="Train", value=iou_train, iteration=epoch)
+        logger.report_scalar(title="IOU", series="Test",  value=iou_test,  iteration=epoch)
 
     split_and_compress_pth(model_name)
-
-    # predict_and_generate_json(model, "test", "test")
-
-
