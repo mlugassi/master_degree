@@ -40,7 +40,7 @@ class PUCTPlayer:
                 # print("state:", game_state.state)
                 # print("board:", game_state.board)
                 # print("player:", game_state.player)
-                node = node.rand_child() if self.training else node.best_child(c_puct)
+                node = node.best_child(c_puct)
                 move = game_state.decode(node.move_idx)
                 game_state.make_move(move[0], move[1])
             
