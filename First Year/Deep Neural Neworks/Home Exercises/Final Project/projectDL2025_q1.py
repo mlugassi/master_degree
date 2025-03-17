@@ -310,7 +310,7 @@ if __name__ == "__main__":
     labels_to_num = {'scroll': 0}
 
     config = {
-        "epochs": 2,
+        "epochs": 1000,
         "learning_rate": 0.001,
         "batch_size": 16,
         "pretrained": False,
