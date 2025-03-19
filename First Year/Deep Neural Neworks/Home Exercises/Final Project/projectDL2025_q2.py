@@ -387,10 +387,10 @@ def get_label_boxes(label_path, image_width, image_height):
 
 def process_detailed_bounding_boxes(image_paths: list[str], output_csv: str) -> None:
     model = YOLO("best_model_q2.pt")  # Load YOLO model
-    detected_boxes = []
     bounding_boxes = []
 
     for image_path in image_paths:
+        detected_boxes = []
         image = cv2.imread(image_path)
 
         if image is None:
@@ -404,15 +404,10 @@ def process_detailed_bounding_boxes(image_paths: list[str], output_csv: str) -> 
                 continue
             for box in result.boxes.data:
                 x_min, y_min, x_max, y_max, confidence, class_id = box.tolist()
-                detected_boxes.append((os.path.basename(image_path), int(x_min), int(y_min), int(x_max), int(y_max)))
-    scroll_num = 1
-    cur_img = None
-    for box in sorted(detected_boxes, key=lambda b: distance((b[1], b[2]), (0, 0))):
-        if cur_img is None or box[0] != cur_img:
-            scroll_num = 1
-            cur_img = box[0]
-        bounding_boxes.append((box[0], scroll_num, box[1], box[2], box[3], box[4]))
-        scroll_num+=1
+                detected_boxes.append((int(x_min), int(y_min), int(x_max), int(y_max)))
+        
+        for scroll_num, box in enumerate(sorted(detected_boxes, key=lambda b: distance((b[0], b[1]), (0, 0))), start=1):
+            bounding_boxes.append((os.path.basename(image_path), scroll_num, box[0], box[1], box[2], box[3]))
     
     # Save bounding boxes to CSV
     with open(output_csv, mode='w', newline='') as file:
@@ -442,7 +437,7 @@ if __name__ == "__main__":
         "train_precent": 0.8,
         "version": 1,
         "question": 2,
-        "train_model": False,
+        "train_model": True,
         "test_model": True,
         "draw_boxes": True
     }
