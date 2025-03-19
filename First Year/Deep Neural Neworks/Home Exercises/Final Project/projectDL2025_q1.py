@@ -282,9 +282,10 @@ def prepare_data(input_dir, output_dir, labels_to_num: dict, train_precent=0.9):
             shutil.copy2(os.path.join(input_train_dir, image_name), os.path.join(val_images_dir, image_name))
         
         for image_name in input_test_images:
-            label_path = os.path.join(test_labels_dir, os.path.splitext(image_name)[0] + '.txt')
-            save_annotations_yolo(test_annotations[image_name], label_path)            
-            shutil.copy2(os.path.join(input_test_dir, image_name), os.path.join(test_images_dir, image_name))
+            if image_name in test_annotations:
+                label_path = os.path.join(test_labels_dir, os.path.splitext(image_name)[0] + '.txt')
+                save_annotations_yolo(test_annotations[image_name], label_path)            
+                shutil.copy2(os.path.join(input_test_dir, image_name), os.path.join(test_images_dir, image_name))
 
         dataset_yaml = os.path.join(output_dir, 'dataset.yaml')
         output_dir_path = os.path.abspath(output_dir).replace('\\', '/')
@@ -507,14 +508,7 @@ if __name__ == "__main__":
         print(f"##### Average Unmatches Predictions: {avg_train_unmatches_pred_boxes:.4f}", flush=True)
         print(f"##### Average Unmatches Actual: {avg_train_unmatches_act_boxes:.4f}", flush=True)
         print("############################################", flush=True)           
-    if config['test_model']:
-        print("\n############# TRAIN RESULTS ################", flush=True)
-        print(f"##### Num Of Images: {num_of_train_images}", flush=True)
-        print(f"##### Average Matches IoU: {avg_train_matches_iou:.4f}", flush=True)
-        print(f"##### Average Matches&Unmatched IoU: {avg_train_matches_unmatched_iou:.4f}", flush=True)
-        print(f"##### Average Unmatches Predictions: {avg_train_unmatches_pred_boxes:.4f}", flush=True)
-        print(f"##### Average Unmatches Actual: {avg_train_unmatches_act_boxes:.4f}", flush=True)
-        print("############################################", flush=True)           
+    if config['test_model']:         
         print("\n############# TEST RESULTS ################", flush=True)
         print(f"##### Num Of Images: {num_of_test_images}", flush=True)
         print(f"##### Average Matches IoU: {avg_test_matches_iou:.4f}", flush=True)
