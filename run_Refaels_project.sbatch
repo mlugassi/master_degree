@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #SBATCH --partition main
-#SBATCH --time 2-00:00:00
+#SBATCH --time 4-00:00:00
 #SBATCH --job-name 'DNN-Project'
 #SBATCH --output job-%J.out
 #SBATCH --mail-user=zanzuri.refael@gmail.com
 #SBATCH --mail-type=ALL
-#SBATCH --gpus=3
+#SBATCH --gpus=1
 #SBATCH --export=ALL,PYTHONUNBUFFERED=1
 
 

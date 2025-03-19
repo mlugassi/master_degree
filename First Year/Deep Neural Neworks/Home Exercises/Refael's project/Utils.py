@@ -99,19 +99,25 @@ def calculate_iou(box1, box2):
     return intersection / union if union > 0 else 0
 
 class Models:
-    faster_rcnn     = "./faster_rcnn"
-    faster_rcnn_1   = "./faster_rcnn.1.pth"
-    faster_rcnn_2   = "./faster_rcnn.2.pth"
-    faster_rcnn_3   = "./faster_rcnn.3.pth"
-    faster_rcnn_4   = "./faster_rcnn.4.pth"
-    faster_rcnn_5   = "./faster_rcnn.5.pth"
-    faster_rcnn_6   = "./faster_rcnn.6.pth"
-    retinanet       = "./retinanet"
-    retinanet_1     = "./retinanet.1.pth"
-    retinanet_2     = "./retinanet.2.pth"
-    retinanet_3     = "./retinanet.3.pth"
-    retinanet_4     = "./retinanet.4.pth"
-    retinanet_5     = "./retinanet.5.pth"
+    faster_rcnn     = "faster_rcnn"
+    faster_rcnn_1   = "faster_rcnn.1.pth"
+    faster_rcnn_2   = "faster_rcnn.2.pth"
+    faster_rcnn_3   = "faster_rcnn.3.pth"
+    faster_rcnn_4   = "faster_rcnn.4.pth"
+    faster_rcnn_5   = "faster_rcnn.5.pth"
+    faster_rcnn_6   = "faster_rcnn.6.pth"
+    faster_rcnn_7   = "faster_rcnn.7.pth"
+    faster_rcnn_8   = "faster_rcnn.8.pth"
+    faster_rcnn_9   = "faster_rcnn.9.pth"
+    retinanet       = "retinanet"
+    retinanet_1     = "retinanet.1.pth"
+    retinanet_2     = "retinanet.2.pth"
+    retinanet_3     = "retinanet.3.pth"
+    retinanet_4     = "retinanet.4.pth"
+    retinanet_5     = "retinanet.5.pth"
+    retinanet_7     = "retinanet.7.pth"
+    retinanet_8     = "retinanet.8.pth"
+    retinanet_9     = "retinanet.9.pth"
 
 def load_model(model_path: str):
     """טוען את מודל ה- RetinaNet המאומן."""
@@ -119,7 +125,7 @@ def load_model(model_path: str):
     model.eval()
     return model
 
-def detect_bounding_boxes(model, image_path: str):
+def detect_bounding_boxes(model, image_path: str, threshold=0.6):
     model.eval()  # מצב הערכה (ללא גרדיאנטים)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -134,8 +140,11 @@ def detect_bounding_boxes(model, image_path: str):
         predictions = model(image_tensor)
     
     boxes = predictions[0]['boxes'].cpu().numpy().astype(int)
+    scores = predictions[0]['scores'].cpu().numpy()
+    mask = scores > threshold
+    fixed_bboxes = boxes[mask]
 
-    return sorted(boxes, key=lambda box: (box[0]**2 + box[1]**2)**0.5)
+    return sorted(fixed_bboxes, key=lambda box: (box[0]**2 + box[1]**2)**0.5)
 
 def create_fasterrcnn_model(pretrained):
     
@@ -160,8 +169,11 @@ def predict_process_bounding_boxes(image_path: str, output_csv: str, model_name=
         model = create_fasterrcnn_model(pretrained)
     elif model_name.startswith(Models.retinanet):
         model = create_retinanet_model(pretrained)
+    else:
+        print("-E- Model_name:", model_name ,"not founded.")
+    
+    model.load_state_dict(torch.load(model_name, map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu")))
 
-    model.load_state_dict(torch.load(model_name, map_location=torch.device("cpu")))
     boxes = detect_bounding_boxes(model, image_path)
     
     with open(output_csv, mode='w', newline='') as file:
@@ -199,3 +211,15 @@ def draw_bounding_boxes(image_path, csv_path, output_path):
 
     cv2.imwrite(output_path, image)
     print(f"Saved image with bounding boxes at: {output_path}")
+
+def boxes_from_csv(csv_path):
+    boxes = []
+    with open(csv_path, mode='r') as file:
+        reader = csv.reader(file)
+        next(reader)
+        
+        for row in reader:
+            # _, _, xmin, ymin, xmax, ymax, _ = row
+            xmin, ymin, xmax, ymax = map(int, row[2:6])
+            boxes.append([xmin,ymin,xmax,ymax])
+    return boxes

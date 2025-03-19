@@ -6,7 +6,7 @@
 #SBATCH --output job-%J.out
 #SBATCH --mail-user=michael19191@gmail.com
 #SBATCH --mail-type=ALL
-#SBATCH --gpus=3
+#SBATCH --gpus=1
 #SBATCH --export=ALL,PYTHONUNBUFFERED=1
 
 
@@ -25,6 +25,9 @@ conda activate ex8
 # export LEARNINGRATE="0.01"
 
 /home/refaelza/.conda/envs/ex8/bin/python3.11 "/home/refaelza/master_degree/First Year/Reinforcement Learning in Artificial Intelligence/Ex8/playGame.py"
+
+# /home/refaelza/.conda/envs/ex8/bin/python3.11 -c "import torch; print(torch.version.cuda); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else None)"
+
 
 # Run the Python script
 # for i in {1..100}; do

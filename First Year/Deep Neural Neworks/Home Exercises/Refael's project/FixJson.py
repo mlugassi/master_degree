@@ -44,6 +44,6 @@ def sort_labelme_bounding_boxes(json_path, output_path):
     print(f"✅ קובץ JSON מוין ונשמר בהצלחה ל-{output_path}")
 
 # 📌 דוגמה לשימוש
-json_files = glob.glob(os.path.join("./train", "*.json"))
+json_files = glob.glob(os.path.join("./test2", "*.json"))
 for json_file in json_files:
     sort_labelme_bounding_boxes(json_file, json_file)
