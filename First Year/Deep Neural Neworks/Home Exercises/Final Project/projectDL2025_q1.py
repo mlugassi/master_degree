@@ -156,7 +156,7 @@ def get_annotations_from_image(dir_path, image_name, labels_to_num: dict, print_
     if not os.path.exists(annotation_path):
         if print_warning:
             print(f"Warning: No annotation file found for {annotation_path}", flush=True)
-        return []
+        return None
     
     with open(annotation_path, 'r') as file:
         data = json.load(file)
@@ -269,7 +269,7 @@ def prepare_data(input_dir, output_dir, labels_to_num: dict, train_precent=0.9):
         val_images = input_train_images[split_idx:]
 
         train_annotations = {img: get_annotations_from_image(os.path.join(input_dir, 'train') , img, labels_to_num) for img in input_train_images}
-        test_annotations = {img: get_annotations_from_image(os.path.join(input_dir, 'test') , img, labels_to_num, print_warning=False) for img in input_test_images}
+        test_annotations = {img: annotations for img in input_test_images if (annotations := get_annotations_from_image(os.path.join(input_dir, 'test'), img, labels_to_num, print_warning=False))}        
         
         for image_name in train_images:
             label_path = os.path.join(train_labels_dir, os.path.splitext(image_name)[0] + '.txt')
@@ -443,9 +443,9 @@ if __name__ == "__main__":
         "train_precent": 0.8,
         "version": 1,
         "question": 1,
-        "train_model": True,
-        "test_model": True,
-        "draw_boxes": True
+        "train_model": False,
+        "test_model": False,
+        "draw_boxes": False
     }
     config["output_dir"] = f"YOLO8_Q{config['question']}V{config['version']}"
     config["model_output"] = os.path.join(config["output_dir"], f"yolov8_trained_q{config['question']}_v{config['version']}.pt")
