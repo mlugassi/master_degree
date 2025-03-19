@@ -473,8 +473,6 @@ if __name__ == "__main__":
         num_of_train_images, avg_train_matches_iou, avg_train_matches_unmatched_iou, avg_train_unmatches_pred_boxes, avg_train_unmatches_act_boxes = calc_iou_information(output_dir=config['output_dir'], images_type="train")
     
     if config['test_model']:
-        predict_boxes(output_dir=config['output_dir'], images_type="train", draw_boxes=config['draw_boxes'])
-        num_of_train_images, avg_train_matches_iou, avg_train_matches_unmatched_iou, avg_train_unmatches_pred_boxes, avg_train_unmatches_act_boxes = calc_iou_information(output_dir=config['output_dir'], images_type="train")
         predict_boxes(output_dir=config['output_dir'], images_type="test", draw_boxes=config['draw_boxes'])
         num_of_test_images, avg_test_matches_iou, avg_test_matches_unmatched_iou, avg_test_unmatches_pred_boxes, avg_test_unmatches_act_boxes = calc_iou_information(output_dir=config['output_dir'], images_type="test")
 
