@@ -18,7 +18,7 @@ from datetime import datetime
 # Ensure script runs from its own directory
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-def get_mean_iou(output_dir, images_type):
+def calc_iou_information(output_dir, images_type):
     """
     Reads all CSV files in a folder, extracts the 'iou' column, and calculates the mean IoU.
     
@@ -29,11 +29,15 @@ def get_mean_iou(output_dir, images_type):
     Returns:
         float: The mean IoU across all images, including unmatched boxes as 0, or None if no valid values found.
     """
-    iou_values = []
+    all_matches_iou_values = []
+    all_matches_unmatches_iou_values = []
+    all_unmatches_act_boxes = []
+    all_unmatches_pred_boxes = []
+
     csv_dir = os.path.join(output_dir, f"prediction_{images_type}")
     label_dir = os.path.join(output_dir, images_type, "labels")
     images_dir = os.path.join(output_dir, images_type, "images")
-
+    num_of_images = 0
     for img in os.listdir(images_dir):
         if not img.endswith(('.png', '.jpg', '.jpeg')):
             continue
@@ -45,6 +49,7 @@ def get_mean_iou(output_dir, images_type):
         if not os.path.exists(csv_path) or not os.path.exists(label_path):
             continue
 
+        num_of_images+=1
         # Load image to get its dimensions
         image = cv2.imread(image_path)
         image_height, image_width = image.shape[:2]
@@ -76,6 +81,7 @@ def get_mean_iou(output_dir, images_type):
 
         # Match predicted boxes to actual boxes and calculate IoU
         matched_iou = []
+        mataches_unmatched_iou = []
         unmatched_pred = len(pred_boxes)  # Initially assume all predicted boxes are unmatched
         unmatched_act = len(act_boxes)  # Initially assume all actual boxes are unmatched
 
@@ -87,15 +93,25 @@ def get_mean_iou(output_dir, images_type):
             for (pred_idx, act_idx) in matched_pairs:
                 iou = calculate_iou(pred_boxes[pred_idx], act_boxes[act_idx])
                 matched_iou.append(iou)
+                mataches_unmatched_iou.append(iou)
 
+        all_unmatches_pred_boxes.append(unmatched_pred)
+        all_unmatches_act_boxes.append(unmatched_act)
         # Assign IoU = 0 for unmatched predicted and actual boxes
-        matched_iou.extend([0] * unmatched_pred)  # False positives
-        matched_iou.extend([0] * unmatched_act)  # False negatives
+        mataches_unmatched_iou.extend([0] * unmatched_pred)  # False positives
+        mataches_unmatched_iou.extend([0] * unmatched_act)  # False negatives
 
         if matched_iou:
-            iou_values.extend(matched_iou)
+            all_matches_iou_values.extend(matched_iou)
+        if mataches_unmatched_iou:
+            all_matches_unmatches_iou_values.extend(mataches_unmatched_iou)
 
-    return sum(iou_values) / len(iou_values) if iou_values else None
+    avg_matches_iou = sum(all_matches_iou_values) / len(all_matches_iou_values) if all_matches_iou_values else -1
+    avg_matches_unmatched_iou = sum(all_matches_unmatches_iou_values) / len(all_matches_unmatches_iou_values) if all_matches_unmatches_iou_values else -1
+    avg_unmatches_pred_boxes = sum(all_unmatches_pred_boxes) / len(all_unmatches_pred_boxes) if all_unmatches_pred_boxes else -1
+    avg_unmatches_act_boxes = sum(all_unmatches_act_boxes) / len(all_unmatches_act_boxes) if all_unmatches_act_boxes else -1
+    
+    return num_of_images, avg_matches_iou, avg_matches_unmatched_iou, avg_unmatches_pred_boxes, avg_unmatches_act_boxes
 
 def match_boxes(pred_boxes, act_boxes):
     """
@@ -452,11 +468,14 @@ if __name__ == "__main__":
                                    batch_size=config['batch_size'], mosaic_augmentation=config['mosaic_augmentation'], image_size=config['image_size'],
                                    pretrained=config['pretrained'], create_test_model=config['test_model'])
     
+        predict_boxes(output_dir=config['output_dir'], images_type="train", draw_boxes=config['draw_boxes'])
+        num_of_train_images, avg_train_matches_iou, avg_train_matches_unmatched_iou, avg_train_unmatches_pred_boxes, avg_train_unmatches_act_boxes = calc_iou_information(output_dir=config['output_dir'], images_type="train")
+    
     if config['test_model']:
         predict_boxes(output_dir=config['output_dir'], images_type="train", draw_boxes=config['draw_boxes'])
+        num_of_train_images, avg_train_matches_iou, avg_train_matches_unmatched_iou, avg_train_unmatches_pred_boxes, avg_train_unmatches_act_boxes = calc_iou_information(output_dir=config['output_dir'], images_type="train")
         predict_boxes(output_dir=config['output_dir'], images_type="test", draw_boxes=config['draw_boxes'])
-        mean_iou_train = get_mean_iou(output_dir=config['output_dir'], images_type="train")
-        mean_iou_test = get_mean_iou(output_dir=config['output_dir'], images_type="test")
+        num_of_test_images, avg_test_matches_iou, avg_test_matches_unmatched_iou, avg_test_unmatches_pred_boxes, avg_test_unmatches_act_boxes = calc_iou_information(output_dir=config['output_dir'], images_type="test")
 
     sample_image_path = os.path.abspath(os.path.join(config['input_dir'], "sample_image.jpg"))  # Change to a real image path
     sample_csv_path = os.path.abspath(os.path.join(config['output_dir'], "sample_output.csv")) # Output CSV file
@@ -481,10 +500,27 @@ if __name__ == "__main__":
         print(f"##### mAP@0.5: {model_results.results_dict['metrics/mAP50(B)']:.4f}", flush=True)
         print(f"##### mAP@0.5:0.95: {model_results.results_dict['metrics/mAP50-95(B)']:.4f}", flush=True)
         print(f"##### Fitness: {model_results.results_dict['fitness']:.4f}", flush=True)
+        print("\n############# TRAIN RESULTS ################", flush=True)
+        print(f"##### Num Of Images: {num_of_train_images}", flush=True)
+        print(f"##### Average Matches IoU: {avg_train_matches_iou:.4f}", flush=True)
+        print(f"##### Average Matches&Unmatched IoU: {avg_train_matches_unmatched_iou:.4f}", flush=True)
+        print(f"##### Average Unmatches Predictions: {avg_train_unmatches_pred_boxes:.4f}", flush=True)
+        print(f"##### Average Unmatches Actual: {avg_train_unmatches_act_boxes:.4f}", flush=True)
+        print("############################################", flush=True)           
     if config['test_model']:
+        print("\n############# TRAIN RESULTS ################", flush=True)
+        print(f"##### Num Of Images: {num_of_train_images}", flush=True)
+        print(f"##### Average Matches IoU: {avg_train_matches_iou:.4f}", flush=True)
+        print(f"##### Average Matches&Unmatched IoU: {avg_train_matches_unmatched_iou:.4f}", flush=True)
+        print(f"##### Average Unmatches Predictions: {avg_train_unmatches_pred_boxes:.4f}", flush=True)
+        print(f"##### Average Unmatches Actual: {avg_train_unmatches_act_boxes:.4f}", flush=True)
+        print("############################################", flush=True)           
         print("\n############# TEST RESULTS ################", flush=True)
-        print(f"##### Mean Train IoU: {mean_iou_train if mean_iou_train is not None else 0:.4f}", flush=True)
-        print(f"##### Mean Test IoU: {mean_iou_test if mean_iou_test is not None else 0:.4f}", flush=True)
+        print(f"##### Num Of Images: {num_of_test_images}", flush=True)
+        print(f"##### Average Matches IoU: {avg_test_matches_iou:.4f}", flush=True)
+        print(f"##### Average Matches&Unmatched IoU: {avg_test_matches_unmatched_iou:.4f}", flush=True)
+        print(f"##### Average Unmatches Predictions: {avg_test_unmatches_pred_boxes:.4f}", flush=True)
+        print(f"##### Average Unmatches Actual: {avg_test_unmatches_act_boxes:.4f}", flush=True)
         print("############################################", flush=True)    
 
     end_time = datetime.now()
