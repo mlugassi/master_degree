@@ -34,7 +34,7 @@ def calc_iou_information(output_dir, images_type):
     all_unmatches_act_boxes = []
     all_unmatches_pred_boxes = []
 
-    csv_dir = os.path.join(output_dir, f"prediction_{images_type}")
+    csv_path = os.path.join(output_dir, f"prediction_{images_type}", images_type + "_prediction.csv")
     label_dir = os.path.join(output_dir, images_type, "labels")
     images_dir = os.path.join(output_dir, images_type, "images")
     num_of_images = 0
@@ -43,10 +43,9 @@ def calc_iou_information(output_dir, images_type):
             continue
         
         image_path = os.path.join(images_dir, img)
-        csv_path = os.path.join(csv_dir, img.split('.')[0] + ".csv")
         label_path = os.path.join(label_dir, img.split('.')[0] + ".txt")
 
-        if not os.path.exists(csv_path) or not os.path.exists(label_path):
+        if not os.path.exists(label_path):
             continue
 
         num_of_images+=1
@@ -60,13 +59,19 @@ def calc_iou_information(output_dir, images_type):
             reader = csv.reader(csv_file)
             header = next(reader, None)
             if header and "xmin" in header:
+                image_name_index = header.index("image_name")
                 x_min_index = header.index("xmin")
                 y_min_index = header.index("ymin")
                 x_max_index = header.index("xmax")
                 y_max_index = header.index("ymax")
+                found = False
                 for row in reader:
-                    pred_box = (int(row[x_min_index]), int(row[y_min_index]), int(row[x_max_index]), int(row[y_max_index]))
-                    pred_boxes.append(pred_box)
+                    if row[image_name_index] == img:
+                        pred_box = (int(row[x_min_index]), int(row[y_min_index]), int(row[x_max_index]), int(row[y_max_index]))
+                        pred_boxes.append(pred_box)
+                        found = True
+                    elif found:
+                        break
 
         # Load actual boxes
         act_boxes = []
@@ -299,6 +304,7 @@ def prepare_data(input_dir, output_dir, labels_to_num: dict, train_precent=0.9):
 
 def draw_bounding_boxes(images_dir, csv_path, output_path):
     with open(csv_path, mode='r') as file:
+        image_path = None
         reader = csv.reader(file)
         next(reader)
         
@@ -309,7 +315,7 @@ def draw_bounding_boxes(images_dir, csv_path, output_path):
                 image_path = os.path.join(images_dir, image_name)
                 image = cv2.imread(image_path)                
             if image_name not in image_path:
-                cv2.imwrite(output_path, image)
+                cv2.imwrite(os.path.join(output_path, os.path.basename(image_path)), image)
                 print(f"Saved image with bounding boxes at: {output_path}", flush=True)                
                 image_path = os.path.join(images_dir, image_name)
                 image = cv2.imread(image_path)
@@ -340,12 +346,12 @@ def predict_boxes(output_dir, images_type, draw_boxes):
     if not os.path.exists(prediction_path):
         os.makedirs(prediction_path, exist_ok=True)
         input_images_dir = os.path.join(output_dir, images_type, "images")
-        images_pathes = [f for f in os.listdir(input_images_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
+        images_pathes = [os.path.abspath(os.path.join(input_images_dir, f)) for f in os.listdir(input_images_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
         process_detailed_bounding_boxes(images_pathes, output_csv_path)
         if draw_boxes:
             draw_imgs_dir_path = os.path.join(prediction_path, "images")
             os.makedirs(draw_imgs_dir_path, exist_ok=True)
-            draw_bounding_boxes(input_images_dir, output_csv_path, os.path.join(draw_imgs_dir_path, "predicted_" + img))    
+            draw_bounding_boxes(input_images_dir, output_csv_path, draw_imgs_dir_path)    
 
 def get_label_boxes(label_path, image_width, image_height):
     """
@@ -398,10 +404,15 @@ def process_detailed_bounding_boxes(image_paths: list[str], output_csv: str) -> 
                 continue
             for box in result.boxes.data:
                 x_min, y_min, x_max, y_max, confidence, class_id = box.tolist()
-                detected_boxes.append((int(x_min), int(y_min), int(x_max), int(y_max)))
-        
-    for scroll_num, box in enumerate(sorted(detected_boxes, key=lambda b: distance((b[0], b[1]), (0, 0))), start=1):
-        bounding_boxes.append((os.path.basename(image_path), scroll_num, box[0], box[1], box[2], box[3]))
+                detected_boxes.append((os.path.basename(image_path), int(x_min), int(y_min), int(x_max), int(y_max)))
+    scroll_num = 1
+    cur_img = None
+    for box in sorted(detected_boxes, key=lambda b: distance((b[1], b[2]), (0, 0))):
+        if cur_img is None or box[0] != cur_img:
+            scroll_num = 1
+            cur_img = box[0]
+        bounding_boxes.append((box[0], scroll_num, box[1], box[2], box[3], box[4]))
+        scroll_num+=1
     
     # Save bounding boxes to CSV
     with open(output_csv, mode='w', newline='') as file:
@@ -431,7 +442,7 @@ if __name__ == "__main__":
         "train_precent": 0.8,
         "version": 1,
         "question": 2,
-        "train_model": True,
+        "train_model": False,
         "test_model": True,
         "draw_boxes": True
     }
@@ -460,14 +471,8 @@ if __name__ == "__main__":
         num_of_train_images, avg_train_matches_iou, avg_train_matches_unmatched_iou, avg_train_unmatches_pred_boxes, avg_train_unmatches_act_boxes = calc_iou_information(output_dir=config['output_dir'], images_type="train")
     
     if config['test_model']:
-        predict_boxes(output_dir=config['output_dir'], images_type="train", draw_boxes=config['draw_boxes'])
-        num_of_train_images, avg_train_matches_iou, avg_train_matches_unmatched_iou, avg_train_unmatches_pred_boxes, avg_train_unmatches_act_boxes = calc_iou_information(output_dir=config['output_dir'], images_type="train")
         predict_boxes(output_dir=config['output_dir'], images_type="test", draw_boxes=config['draw_boxes'])
         num_of_test_images, avg_test_matches_iou, avg_test_matches_unmatched_iou, avg_test_unmatches_pred_boxes, avg_test_unmatches_act_boxes = calc_iou_information(output_dir=config['output_dir'], images_type="test")
-
-    sample_csv_path = os.path.abspath(os.path.join(config['output_dir'], "sample_output.csv")) # Output CSV file
-    process_detailed_bounding_boxes(os.path.abspath(config['input_dir']), sample_csv_path)
-
     try:
         shutil.rmtree("runs")
         print(f"Deleted directory: runs/", flush=True)
