@@ -315,7 +315,8 @@ def draw_bounding_boxes(images_dir, csv_path, output_path):
                 image_path = os.path.join(images_dir, image_name)
                 image = cv2.imread(image_path)                
             if image_name not in image_path:
-                cv2.imwrite(os.path.join(output_path, os.path.basename(image_path)), image)
+                output_image_path = os.path.join(output_path, os.path.basename(image_path))
+                cv2.imwrite(output_image_path, image)
                 print(f"Saved image with bounding boxes at: {output_path}", flush=True)                
                 image_path = os.path.join(images_dir, image_name)
                 image = cv2.imread(image_path)
@@ -323,8 +324,6 @@ def draw_bounding_boxes(images_dir, csv_path, output_path):
             
             label = f"Scroll {scroll_number}"
             cv2.putText(image, label, (xmin, ymin - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-
 
 def calculate_iou(box1, box2):
     x1 = max(box1[0], box2[0])
@@ -346,8 +345,8 @@ def predict_boxes(output_dir, images_type, draw_boxes):
     if not os.path.exists(prediction_path):
         os.makedirs(prediction_path, exist_ok=True)
         input_images_dir = os.path.join(output_dir, images_type, "images")
-        images_pathes = [os.path.abspath(os.path.join(input_images_dir, f)) for f in os.listdir(input_images_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
-        process_detailed_bounding_boxes(images_pathes, output_csv_path)
+        images_paths = [os.path.abspath(os.path.join(input_images_dir, f)) for f in os.listdir(input_images_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
+        process_detailed_bounding_boxes(images_paths, output_csv_path)
         if draw_boxes:
             draw_imgs_dir_path = os.path.join(prediction_path, "images")
             os.makedirs(draw_imgs_dir_path, exist_ok=True)
@@ -385,12 +384,11 @@ def get_label_boxes(label_path, image_width, image_height):
     
     return sorted_boxes
 
-def process_detailed_bounding_boxes(image_paths: list[str], output_csv: str) -> None:
+def process_detailed_bounding_boxes(image_paths: list[str], output_csv: str) -> list[str]:
     model = YOLO("best_model_q2.pt")  # Load YOLO model
     bounding_boxes = []
-
+    
     for image_path in image_paths:
-        detected_boxes = []
         image = cv2.imread(image_path)
 
         if image is None:
@@ -399,6 +397,7 @@ def process_detailed_bounding_boxes(image_paths: list[str], output_csv: str) -> 
         
         results = model.predict(image, augment=True, agnostic_nms=True)
         
+        detected_boxes = []
         for result in results:
             if result.boxes is None:
                 continue
@@ -416,6 +415,7 @@ def process_detailed_bounding_boxes(image_paths: list[str], output_csv: str) -> 
         writer.writerows(bounding_boxes)
 
     print(f"Bounding boxes saved to {output_csv}", flush=True)
+    return image_paths
 
 if __name__ == "__main__":
     start_time = datetime.now()
