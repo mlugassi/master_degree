@@ -221,20 +221,18 @@ def save_annotations_yolo(annotations, output_txt):
 
 def train_yolo(dataset_yaml, trained_model_path, epochs, learning_rate, optimizer, batch_size, mosaic_augmentation, image_size, pretrained, create_test_model):
     """Trains YOLOv8 using images from the specified directory and evaluates accuracy."""
-    model_path = trained_model_path if os.path.exists(trained_model_path) else os.path.join(os.path.dirname(trained_model_path), "yolov8l.pt")
+    model_path = "last_model_q1.pt" if os.path.exists("last_model_q1.pt") else os.path.join(os.path.dirname(trained_model_path), "yolov8l.pt")
     model = YOLO(model_path)
 
     print("\n🔎 Running training...", flush=True)
     # Train the model
-    model.train(data=dataset_yaml, epochs=epochs, lr0=learning_rate, optimizer=optimizer, 
+    train_res = model.train(data=dataset_yaml, epochs=epochs, lr0=learning_rate, optimizer=optimizer, 
                 batch=batch_size, mosaic=mosaic_augmentation, imgsz=image_size, pretrained=pretrained,
                 device='cuda' if torch.cuda.is_available() else 'cpu')
     val_results = model.val()
-    model.save(trained_model_path)
-    if create_test_model:
-        model.save("best_model_q1.pt")
+    model.save("last_model_q1.pt")
 
-    return val_results
+    return train_res, val_results
 
 def prepare_data(input_dir, output_dir, labels_to_num: dict, train_precent=0.9):
     input_train_dir = os.path.join(input_dir, 'train', 'images')        
@@ -257,35 +255,32 @@ def prepare_data(input_dir, output_dir, labels_to_num: dict, train_precent=0.9):
         input_train_images = [f for f in os.listdir(input_train_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
         input_test_images = [f for f in os.listdir(input_test_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
         
-        if not input_train_images:
-            raise FileNotFoundError("No images found in train directory. Ensure images are correctly placed.")
+        if input_train_images:
+            random.shuffle(input_train_images)
+            split_idx = int(len(input_train_images) * train_precent)
+            train_images = input_train_images[:split_idx]
+            val_images = input_train_images[split_idx:]
 
-        if not input_test_images:
-            raise FileNotFoundError("No images found in train directory. Ensure images are correctly placed.")
-                
-        random.shuffle(input_train_images)
-        split_idx = int(len(input_train_images) * train_precent)
-        train_images = input_train_images[:split_idx]
-        val_images = input_train_images[split_idx:]
+            train_annotations = {img: get_annotations_from_image(os.path.join(input_dir, 'train') , img, labels_to_num) for img in input_train_images}
+            
+            for image_name in train_images:
+                label_path = os.path.join(train_labels_dir, os.path.splitext(image_name)[0] + '.txt')
+                save_annotations_yolo(train_annotations[image_name], label_path)
+                shutil.copy2(os.path.join(input_train_dir, image_name), os.path.join(train_images_dir, image_name))
+            
+            for image_name in val_images:
+                label_path = os.path.join(val_labels_dir, os.path.splitext(image_name)[0] + '.txt')
+                save_annotations_yolo(train_annotations[image_name], label_path)
+                shutil.copy2(os.path.join(input_train_dir, image_name), os.path.join(val_images_dir, image_name))
 
-        train_annotations = {img: get_annotations_from_image(os.path.join(input_dir, 'train') , img, labels_to_num) for img in input_train_images}
-        test_annotations = {img: annotations for img in input_test_images if (annotations := get_annotations_from_image(os.path.join(input_dir, 'test'), img, labels_to_num, print_warning=False))}        
-        
-        for image_name in train_images:
-            label_path = os.path.join(train_labels_dir, os.path.splitext(image_name)[0] + '.txt')
-            save_annotations_yolo(train_annotations[image_name], label_path)
-            shutil.copy2(os.path.join(input_train_dir, image_name), os.path.join(train_images_dir, image_name))
-        
-        for image_name in val_images:
-            label_path = os.path.join(val_labels_dir, os.path.splitext(image_name)[0] + '.txt')
-            save_annotations_yolo(train_annotations[image_name], label_path)
-            shutil.copy2(os.path.join(input_train_dir, image_name), os.path.join(val_images_dir, image_name))
-        
-        for image_name in input_test_images:
-            if image_name in test_annotations:
-                label_path = os.path.join(test_labels_dir, os.path.splitext(image_name)[0] + '.txt')
-                save_annotations_yolo(test_annotations[image_name], label_path)            
-                shutil.copy2(os.path.join(input_test_dir, image_name), os.path.join(test_images_dir, image_name))
+        if input_test_images:
+            test_annotations = {img: annotations for img in input_test_images if (annotations := get_annotations_from_image(os.path.join(input_dir, 'test'), img, labels_to_num, print_warning=False))}        
+
+            for image_name in input_test_images:
+                if image_name in test_annotations:
+                    label_path = os.path.join(test_labels_dir, os.path.splitext(image_name)[0] + '.txt')
+                    save_annotations_yolo(test_annotations[image_name], label_path)            
+                    shutil.copy2(os.path.join(input_test_dir, image_name), os.path.join(test_images_dir, image_name))
 
         dataset_yaml = os.path.join(output_dir, 'dataset.yaml')
         output_dir_path = os.path.abspath(output_dir).replace('\\', '/')
@@ -395,7 +390,7 @@ def predict_process_bounding_boxes(image_path: str, output_csv: str) -> None:
     output_csv (str): Path to the output CSV file.
     """
 
-    model = YOLO("best_model_q1.pt")  # Load YOLO model
+    model = YOLO(f"best_model_q1.pt")  # Load YOLO model
     image = cv2.imread(image_path)
 
     if image is None:
@@ -430,23 +425,23 @@ if __name__ == "__main__":
 
     print("CUDA Available:", torch.cuda.is_available(), flush=True)
     print("CUDA Device:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU", flush=True)    
-
+    train_res = None
     labels_to_num = {'scroll': 0}
 
     config = {
         "epochs": 1000,
-        "learning_rate": 0.001,
-        "batch_size": 16,
+        "learning_rate": 0.000001,
+        "batch_size": 4,
         "pretrained": False,
-        "mosaic_augmentation": 0,
-        "image_size": 640,
+        "mosaic_augmentation": 1,
+        "image_size": 1000,
         "optimizer": "Adam",
         "train_precent": 0.8,
-        "version": 1,
+        "version": 11,
         "question": 1,
         "train_model": False,
-        "test_model": False,
-        "draw_boxes": False
+        "test_model": True,
+        "draw_boxes": True
     }
     config["output_dir"] = f"YOLO8_Q{config['question']}V{config['version']}"
     config["model_output"] = os.path.join(config["output_dir"], f"yolov8_trained_q{config['question']}_v{config['version']}.pt")
@@ -464,11 +459,12 @@ if __name__ == "__main__":
 
     dataset_yaml = prepare_data(input_dir=config['input_dir'], output_dir=config['output_dir'], labels_to_num=labels_to_num, train_precent=config['train_precent'])
     if config['train_model']:
-        model_results = train_yolo(dataset_yaml=dataset_yaml, trained_model_path=config['model_output'], 
+        train_res, model_results = train_yolo(dataset_yaml=dataset_yaml, trained_model_path=config['model_output'], 
                                    epochs=config['epochs'], learning_rate=config['learning_rate'], optimizer=config['optimizer'],
                                    batch_size=config['batch_size'], mosaic_augmentation=config['mosaic_augmentation'], image_size=config['image_size'],
                                    pretrained=config['pretrained'], create_test_model=config['test_model'])
-    
+
+        shutil.move(os.path.join(train_res.save_dir, "weights", "best.pt"), f"./best_model_q{config['question']}.pt")
         predict_boxes(output_dir=config['output_dir'], images_type="train", draw_boxes=config['draw_boxes'])
         num_of_train_images, avg_train_matches_iou, avg_train_matches_unmatched_iou, avg_train_unmatches_pred_boxes, avg_train_unmatches_act_boxes = calc_iou_information(output_dir=config['output_dir'], images_type="train")
     
@@ -476,15 +472,12 @@ if __name__ == "__main__":
         predict_boxes(output_dir=config['output_dir'], images_type="test", draw_boxes=config['draw_boxes'])
         num_of_test_images, avg_test_matches_iou, avg_test_matches_unmatched_iou, avg_test_unmatches_pred_boxes, avg_test_unmatches_act_boxes = calc_iou_information(output_dir=config['output_dir'], images_type="test")
 
-    sample_image_path = os.path.abspath(os.path.join(config['input_dir'], "sample_image.jpg"))  # Change to a real image path
-    sample_csv_path = os.path.abspath(os.path.join(config['output_dir'], "sample_output.csv")) # Output CSV file
-    predict_process_bounding_boxes(sample_image_path, sample_csv_path) # Ensures that the predict_process_bounding_boxes function works correctly with absolute file paths.
-
-    try:
-        shutil.rmtree("runs")
-        print(f"Deleted directory: runs/", flush=True)
-    except FileNotFoundError:
-        print("Directory does not exist.", flush=True)
+    if train_res:
+        try:
+            shutil.rmtree(train_res.save_dir)
+            print(f"Deleted directory: {train_res.save_dir}", flush=True)
+        except FileNotFoundError:
+            print("Directory does not exist.", flush=True)
 
     # Print configuration details
     print("\n############# MODEL CONFIGURATION ################", flush=True)

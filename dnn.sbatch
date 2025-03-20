@@ -6,7 +6,7 @@
 #SBATCH --output job-%J.out
 #SBATCH --mail-user=michael19191@gmail.com
 #SBATCH --mail-type=ALL
-#SBATCH --gpus=4
+#SBATCH --gpus=3
 #SBATCH --export=ALL,PYTHONUNBUFFERED=1
 
 echo "Current Date:"
@@ -21,3 +21,4 @@ conda activate test1
 
 # Run the Python script
 /home/michaellu/.conda/envs/test1/bin/python3.11 "/home/michaellu/master_degree/First Year/Deep Neural Neworks/Home Exercises/Final Project/projectDL2025_q1.py"
+# /home/michaellu/.conda/envs/test1/bin/python3.11 "/home/michaellu/master_degree/First Year/Deep Neural Neworks/Home Exercises/Final Project/projectDL2025_q2.py"
