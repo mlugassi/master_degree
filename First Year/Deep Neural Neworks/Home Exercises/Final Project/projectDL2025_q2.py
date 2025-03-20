@@ -423,7 +423,7 @@ if __name__ == "__main__":
     labels_to_num = {'scroll': 0, 'Megila': 0}
 
     config = {
-        "epochs": 1000,
+        "epochs": 10,
         "learning_rate": 0.001,
         "batch_size": 16,
         "pretrained": False,
@@ -433,7 +433,7 @@ if __name__ == "__main__":
         "train_precent": 0.8,
         "version": 1,
         "question": 2,
-        "train_model": False,
+        "train_model": True,
         "test_model": True,
         "draw_boxes": True
     }
