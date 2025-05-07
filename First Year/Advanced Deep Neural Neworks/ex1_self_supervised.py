@@ -38,6 +38,7 @@ def get_first_n_per_class(dataset, samples_per_class=60):
         if all(len(v) == samples_per_class for v in class_to_indices.values()):
             break
 
+
     return selected_indices
 
 def train(model, loader, device, num_epochs, criterion, optimizer, freeze_backbone=False):
