@@ -10,8 +10,8 @@ from torchvision.datasets import CIFAR10
 from torchvision.transforms import functional as F
 
 class RotationDataset(torch.utils.data.Dataset):
-    def __init__(self, base_dataset, indices):
-        self.base_data = Subset(base_dataset, indices)
+    def __init__(self, base_dataset, indices=None):
+        self.base_data = base_dataset if indices is None else Subset(base_dataset, indices)
         self.rotation_angles = [0, 90, 180, 270]
 
     def __len__(self):
@@ -37,7 +37,6 @@ def get_first_n_per_class(dataset, samples_per_class=60):
 
         if all(len(v) == samples_per_class for v in class_to_indices.values()):
             break
-
 
     return selected_indices
 
@@ -87,9 +86,9 @@ def evaluate(model, loader, device):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--small', action='store_true', help='Train on 600 deterministic images using supervised learning')
-    parser.add_argument('--supervised_small', action='store_true', help='Self-supervised rotation pretraining + fine-tune on 600 deterministic labeled images')
-    parser.add_argument('--num_epochs', type=int, default=512, help='Number of epochs for training (default: 512)')
-    parser.add_argument('--batch_size', type=int, default=64, help='Batch size for training and evaluation (default: 64)')
+    parser.add_argument('--supervised_small', action='store_true', help='Self-supervised rotation pretraining on full dataset + fine-tune on 600 deterministic labeled images')
+    parser.add_argument('--num_epochs', type=int, default=500, help='Number of epochs for training (default: 500)')
+    parser.add_argument('--batch_size', type=int, default=128, help='Batch size for training and evaluation (default: 128)')
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -106,8 +105,8 @@ def main():
     if args.supervised_small:
         indices = get_first_n_per_class(base_train_dataset, samples_per_class=60)
 
-        print("Phase 1: Self-supervised training on rotation task")
-        rotation_dataset = RotationDataset(base_train_dataset, indices)
+        print("Phase 1: Self-supervised training on rotation task (full dataset)")
+        rotation_dataset = RotationDataset(base_train_dataset)
         rotation_loader = DataLoader(rotation_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)
 
         model = resnet18(pretrained=False)
@@ -118,7 +117,7 @@ def main():
 
         train(model, rotation_loader, device, args.num_epochs, criterion, optimizer)
 
-        print("Phase 2: Fine-tuning on real CIFAR-10 labels")
+        print("Phase 2: Fine-tuning on real CIFAR-10 labels (600 deterministic samples)")
         backbone = model
 
         model = resnet18(pretrained=False)
