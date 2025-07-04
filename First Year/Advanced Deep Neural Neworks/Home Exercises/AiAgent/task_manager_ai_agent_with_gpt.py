@@ -1,6 +1,5 @@
 from langchain_core.tools import tool
 import os
-import re
 from typing import List, Literal
 from typing_extensions import TypedDict
 from langchain_openai import ChatOpenAI
@@ -10,9 +9,11 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.runnables import RunnableLambda
 from langgraph.prebuilt import ToolNode
 
-from uuid import uuid4
 from dotenv import load_dotenv
 
+# os.environ['http_proxy'] = 'http://proxy-iil.intel.com:912'
+# os.environ['https_proxy'] = 'http://proxy-iil.intel.com:912'
+# os.environ['no_proxy'] = 'localhost,127.0.0.1'
 
 env_path = os.path.join(os.path.dirname(__file__), ".env")
 load_dotenv(dotenv_path=env_path)
@@ -142,13 +143,8 @@ def finish_state(state: TaskAgentState) -> TaskAgentState:
     """
     if state["debug_mode"]:
         print("<< calling finish_state")
-    state["messages"][-1].tool_calls = None  # Clear tool calls from the last message
-    system_prompt = SystemMessage(content=(
-        "The user has chosen to end the session. Generate a polite and friendly goodbye message to conclude the interaction."
-    ))
     state["finished"] = True
-    response = llm.invoke([system_prompt])        
-    state["messages"] = add_messages(state["messages"], AIMessage(content=response.content))
+    state["messages"] = add_messages(state["messages"], AIMessage(content="Gopodbye! Thank you for using the Task Manager AI Agent."))
     return state
 
 
@@ -288,7 +284,7 @@ def wrap_tool_node(state: TaskAgentState) -> TaskAgentState:
             print(f"Tool '{tool_name}' not found in tool map.")
     return state
 
-llm: ChatOpenAI = ChatOpenAI(model="gpt-4-turbo", temperature=0).bind_tools(tools)
+llm: ChatOpenAI = ChatOpenAI(model="gpt-4", temperature=0).bind_tools(tools)
 
 # ----- Graph Definition -----
 builder = StateGraph(TaskAgentState)
@@ -314,11 +310,13 @@ app = builder.compile()
 # ----- Interactive Loop -----
 if __name__ == "__main__":
     hello_message = init_llm()
-    state: TaskAgentState = {"debug_mode": True, "finished": False, "messages": [AIMessage(content=hello_message)]}
+    #Set debug_mode to True to see more detailed logs
+    state: TaskAgentState = {"debug_mode": False, "finished": False, "messages": [AIMessage(content=hello_message)]}
 
     print(state["messages"][-1].content)
     while not state["finished"]:
         user_input = input(">>> ")
-        state["messages"] = add_messages(state["messages"], HumanMessage(content=user_input))
-        state = app.invoke(state)
-        print(state["messages"][-1].content)
+        if(user_input != ""):
+            state["messages"] = add_messages(state["messages"], HumanMessage(content=user_input))
+            state = app.invoke(state)
+            print(state["messages"][-1].content)
